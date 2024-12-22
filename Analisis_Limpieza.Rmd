@@ -1,0 +1,29 @@
+---
+title: "Analisis_Limpieza"
+author: "Marina Fernández Delgado"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# Carga de datos
+
+Para el desarrollo de la práctica se va a utilizar el dataset obtenido en la práctica de Web Scraping, el cual cuenta con 538 registros y 19 variables.
+
+```{r setup, include=FALSE}
+properties_spain <- read.csv("properties_Spain.csv")
+```
+
+
+# Análisis de los datos
+
+```{r}
+summary(properties_spain)
+```
+Este dataset contiene columnas numéricas y categóricas, pero, podemos intuir por el resumen anterior que hay variables, como los baños o las habitaciones que deberían ser númericas y que, por tanto, deberían ser modificadas. 
+
+```{r}
+unique(properties_spain$Bathrooms)
+```
+
+
+
