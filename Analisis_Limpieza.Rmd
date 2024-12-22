@@ -13,17 +13,85 @@ Para el desarrollo de la práctica se va a utilizar el dataset obtenido en la pr
 properties_spain <- read.csv("properties_Spain.csv")
 ```
 
+```{r}
+library(stringr)
+library(skimr)
+```
 
 # Análisis de los datos
 
 ```{r}
 summary(properties_spain)
 ```
-Este dataset contiene columnas numéricas y categóricas, pero, podemos intuir por el resumen anterior que hay variables, como los baños o las habitaciones que deberían ser númericas y que, por tanto, deberían ser modificadas. 
+Este dataset contiene columnas numéricas y categóricas, pero, podemos intuir por el resumen anterior que hay variables, como los baños o las habitaciones que deberían ser numéricas y que, por tanto, deberían ser modificadas. 
+
 
 ```{r}
-unique(properties_spain$Bathrooms)
+unique(properties_spain)
+```
+```{r}
+properties_spain$Bathrooms <- as.factor(str_extract(properties_spain$Bathrooms, "\\d+"))
+properties_spain$Bedrooms <- as.factor(str_extract(properties_spain$Bedrooms, "\\d+"))
+properties_spain$Energy_Consumption <- as.numeric(str_extract(properties_spain$Energy_Consumption, "\\d+"))
+properties_spain$Publish_date <- as.Date(properties_spain$Publish_date)
 ```
 
+```{r}
+Property <- sapply(properties_spain$title, function(x) strsplit(x, " ")[[1]][1])
+properties_spain$Property <- as.data.frame(Property)
+```
+
+
+```{r}
+properties_spain <- subset(properties_spain, select = -c(item, url, title))
+```
+
+
+```{r}
+properties_spain <- as.data.frame(lapply(properties_spain, function(x) {
+  x[x == ""] <- NA
+  return(x)
+}))
+```
+
+
+```{r}
+skim(properties_spain)
+```
+
+También podemos ver que no hay registros duplicados, puesto que, si recordamos la práctica 1, lo que hicimos fue traernos todas las propiedades vigentes en venta o alquiler de la página web de Tecnocasa.
+
+Tipo de Contrato
+
+```{r}
+list(unique(properties_spain$Contrat))[[1]]
+```
+Tipo de propiedad
+
+```{r}
+list(unique(properties_spain$Property_Type))[[1]]
+```
+
+Planta
+
+```{r}
+list(unique(properties_spain$Floor))[[1]]
+```
+
+Ciudad
+
+```{r}
+list(unique(properties_spain$City))[[1]]
+```
+
+Comunidad autónoma
+```{r}
+list(unique(properties_spain$Autonomous_Community))[[1]]
+```
+
+Propiedad
+```{r}
+list(unique(properties_spain$Property))
+```
 
 
