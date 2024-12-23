@@ -5,30 +5,37 @@ date: "`r Sys.Date()`"
 output: html_document
 ---
 
-# Carga de datos
-
-Para el desarrollo de la práctica se va a utilizar el dataset obtenido en la práctica de Web Scraping, el cual cuenta con 538 registros y 19 variables.
-
-```{r setup, include=FALSE}
-properties_spain <- read.csv("properties_Spain.csv")
-```
-
 ```{r}
 library(stringr)
 library(skimr)
+library(dplyr)
+library(ggplot2)
 ```
 
-# Análisis de los datos
+# Carga de datos
+
+Para el desarrollo de la práctica se va a utilizar el dataset obtenido en la práctica de Web Scraping, el cual cuenta con 541 registros y 22 variables. Se han hecho unas modificaciones respecto al dataset de la primera práctica, puesto que se han añadido 3 columnas más que nos proporcionan másimformación, como son el título de la propiedad y la url del mismo.
+
+```{r setup}
+properties_spain <- read.csv("properties_Spain.csv")
+```
+
+
+# Análisis preliminar de los datos
 
 ```{r}
 summary(properties_spain)
 ```
-Este dataset contiene columnas numéricas y categóricas, pero, podemos intuir por el resumen anterior que hay variables, como los baños o las habitaciones que deberían ser numéricas y que, por tanto, deberían ser modificadas. 
-
 
 ```{r}
 unique(properties_spain)
 ```
+Este dataset contiene columnas numéricas y categóricas, pero, podemos intuir por el resumen anterior que hay variables, como los baños o las habitaciones que deberían ser numéricas y que, por tanto, deberían ser modificadas. Por otro lado, la columna "item" nos muestra que todos los valores son "Na's" por lo que hay que eliminarla. Vemos también que hay registros con valores nulos que no aparecen en el resumen, por lo que habrá que analizar que está pasando para poder cuantificarlo de forma correcta, antes del análisis final. Finalmente podemos ver que no hay registros duplicados, puesto que, si recordamos la práctica 1, lo que hicimos fue traernos todas las propiedades vigentes en venta o alquiler de la página web de Tecnocasa.
+
+# Limpieza de los datos
+
+Lo primero que hacemos es cambiar el formato a las columnas que sabemos que son numéricas, como son el número de baños, las habitaciones y el consumo de energía. También ponemos en formato fecha la columna de fecha de publicación.
+
 ```{r}
 properties_spain$Bathrooms <- as.factor(str_extract(properties_spain$Bathrooms, "\\d+"))
 properties_spain$Bedrooms <- as.factor(str_extract(properties_spain$Bedrooms, "\\d+"))
@@ -36,16 +43,20 @@ properties_spain$Energy_Consumption <- as.numeric(str_extract(properties_spain$E
 properties_spain$Publish_date <- as.Date(properties_spain$Publish_date)
 ```
 
+A continuación, de la columna del título de la página extraemos si que tipo de propiedad es, en el sentido de si es un piso, una casa o una plaza de garaje. 
+
 ```{r}
 Property <- sapply(properties_spain$title, function(x) strsplit(x, " ")[[1]][1])
 properties_spain$Property <- as.data.frame(Property)
 ```
 
+En este punto eliminamos las columnas que hemos utilizado para obtener la propiedad de cada registro.
 
 ```{r}
 properties_spain <- subset(properties_spain, select = -c(item, url, title))
 ```
 
+A continuación, transformamos todos los registros vacíos para que aparezcan como "Na's" debido a que no aparecían de ese modo y nos puede servir para identificar mejor como es el conjunto de datos.
 
 ```{r}
 properties_spain <- as.data.frame(lapply(properties_spain, function(x) {
@@ -54,44 +65,462 @@ properties_spain <- as.data.frame(lapply(properties_spain, function(x) {
 }))
 ```
 
+Utilizando la fórmula `r skim` de la biblioteca `r skimr` se va a realizar un análisis exploratorio con el fin de comprobar en que estado está cada variable, cuantos valores perdidos hay, como es la distribución, entre otras cosas.  
 
 ```{r}
 skim(properties_spain)
 ```
 
-También podemos ver que no hay registros duplicados, puesto que, si recordamos la práctica 1, lo que hicimos fue traernos todas las propiedades vigentes en venta o alquiler de la página web de Tecnocasa.
+Podemos ver, por ejemplo, que en las variables categóricas tenemos bastantes valores incompletos, siendo más acusado el ascensor y la calefacción. Por lo que, realmente habrá que pensar si merece la pena mantener esas variables o si las eliminamos. En cuanto al número de habitaciones y baños, vemos que tenemos en torno al 80% de cada variable completado, por lo que quizá podemos utilizar técnicas de imputación de valores para suponer cual es el valor más probable de cada uno, 
 
-Tipo de Contrato
 
-```{r}
-list(unique(properties_spain$Contrat))[[1]]
-```
-Tipo de propiedad
+## Análisis variables categóricas
+
+### Propiedad
 
 ```{r}
-list(unique(properties_spain$Property_Type))[[1]]
-```
-
-Planta
-
-```{r}
-list(unique(properties_spain$Floor))[[1]]
-```
-
-Ciudad
-
-```{r}
-list(unique(properties_spain$City))[[1]]
-```
-
-Comunidad autónoma
-```{r}
-list(unique(properties_spain$Autonomous_Community))[[1]]
-```
-
-Propiedad
-```{r}
-list(unique(properties_spain$Property))
+frecuencias <- sort(table(properties_spain$Property), decreasing = TRUE)
+frecuencias
 ```
 
 
+```{r}
+colores <- rainbow(length(frecuencias))
+
+barplot(frecuencias, 
+        main = "Distribución de Propiedades", 
+        ylab = "Frecuencia", 
+        col = colores,
+        las = 2,       
+        cex.names = 0.8)
+
+```
+
+En vista de los tipos de propiedades que se han extraído, creo que las propiedades "Box/Plaza" y "Local" nos pueden dar problemas en el análisis, por lo que esos registros se van a despreciar y eliminar del dataset. Por otro lado, vemos que sólo hay 1 "Ático", por lo que se va a agrupar dentro de los pisos para el posterior análisis.
+
+```{r}
+properties_spain <- properties_spain %>%
+                      mutate(Property = ifelse(Property == "Ático", "Piso", Property))
+properties_spain <- properties_spain[properties_spain$Property != "Local" & properties_spain$Property != "Box/plaza",]
+```
+
+```{r}
+frecuencias <- sort(table(properties_spain$Property), decreasing = TRUE)
+frecuencias
+```
+
+```{r}
+colores <- rainbow(length(frecuencias))
+
+barplot(frecuencias, 
+        main = "Distribución de Propiedades", 
+        ylab = "Frecuencia", 
+        col = colores,
+        las = 2,       
+        cex.names = 0.8)
+
+```
+Además, en vista de estos datos se va a transformar en factor de cara a futuros análisis.
+
+```{r}
+properties_spain$Property <- as.factor(properties_spain$Property)
+```
+
+
+### Tipo de Contrato
+
+Del tipo de contrato no hay nada que señalar, puesto que son las casuísticas que esperábamos. Pero si que vemos hay una relación 1:4 en cuanto a los contratos de venta y alquiler en el diagrama siguiente, por lo que igual hay que tener en cuenta esta descompensación de cara al análisis posterior.
+
+```{r}
+frecuencias <- sort(table(properties_spain$Contrat), decreasing = TRUE)
+frecuencias
+```
+```{r}
+colores <- rainbow(length(frecuencias))
+
+barplot(frecuencias, 
+        main = "Distribución de Contratos", 
+        xlab = "Tipo de Contrato", 
+        ylab = "Frecuencia", 
+        col = colores
+        )
+
+```
+En este punto tenemos 44 viviendas en alquiler y 438 propiedades a la venta. Habría que analizar si realmente merece la pena mantener las propiedades en alquiler o quedarnos solo con las que están a la venta de forma que podamos analizar el precio de venta en el mercado inmobiliario español. Realmente si que tiene sentido, al menos separar ambos tipos de contrato en distintos datasets porque el precio de venta no es lo mismo que el precio de alquilar.
+
+```{r}
+properties_spain_sell <- subset(properties_spain[properties_spain$Contrat == "venta",], select = -c(Contrat))
+properties_spain_rent <- subset(properties_spain[properties_spain$Contrat == "alquiler",], select = -c(Contrat))
+```
+
+Por tanto, a partir de ahora trabajaremos con el dataset "properties_spain_sell".
+
+### Característica de la propiedad
+
+
+```{r}
+frecuencias <- sort(table(properties_spain_sell$Property_Type), decreasing = TRUE)
+frecuencias
+```
+
+```{r}
+colores <- rainbow(length(frecuencias))
+
+barplot(frecuencias, 
+        main = "Distribución de Caracteristicas de Propiedades", 
+        xlab = "Caracteristicas de Propiedades", 
+        ylab = "Frecuencia", 
+        col = colores
+        )
+
+```
+Del tipo de propiedad, esto es interesante, porque puede aportarnos información adicional, habrá que ver si realmente es. Se puede ver en el diagrama de barras que mayoritariamente las características de propiedades que hay son: media y popular, lo que indica que son pisos y casas asequibles para la mayoría de las personas. Las casas señoriales y de época suelen ser más caras puesto que precisan de un mayor mantenimiento y cuidados y suelen ser más grandes, lo que implica más dinero y menos posibilidades de venta.
+
+```{r}
+properties_spain_sell$Property_Type <- as.factor(properties_spain_sell$Property_Type)
+```
+
+### Ciudad
+
+```{r}
+frecuencias <- sort(table(properties_spain_sell$City), decreasing = TRUE)
+frecuencias
+```
+
+```{r}
+colores <- rainbow(length(frecuencias))
+
+par(mar = c(12, 4, 4, 2))
+barplot(frecuencias, 
+        main = "Distribución de Ciudades", 
+        ylab = "Frecuencia", 
+        col = colores,
+        las = 2,
+        cex.axis = 0.8
+        )
+par(mar = c(5, 4, 4, 2))
+```
+Además, en vista de estos datos se va a transformar en factor de cara a futuros análisis.
+
+```{r}
+properties_spain$City <- as.factor(properties_spain$City)
+```
+
+### Comunidad autónoma
+
+```{r}
+frecuencias <- sort(table(properties_spain_sell$Autonomous_Community), decreasing = TRUE)
+frecuencias
+```
+
+```{r}
+colores <- rainbow(length(frecuencias))
+
+par(mar = c(12, 4, 4, 2))
+barplot(frecuencias, 
+        main = "Distribución de Comunidades Autónomas", 
+        ylab = "Frecuencia", 
+        col = colores,
+        las = 2,
+        cex.axis = 0.8
+        )
+par(mar = c(5, 4, 4, 2))
+```
+Además, en vista de estos datos se va a transformar en factor de cara a futuros análisis.
+
+```{r}
+properties_spain$Autonomous_Community <- as.factor(properties_spain$Autonomous_Community)
+```
+
+### Clase Energética
+
+
+```{r}
+frecuencias <- sort(table(properties_spain_sell$Energy_Class), decreasing = TRUE)
+frecuencias
+```
+
+```{r}
+colores <- rainbow(length(frecuencias))
+
+
+barplot(frecuencias, 
+        main = "Distribución de clases energéticas", 
+        ylab = "Frecuencia", 
+        col = colores,
+        cex.axis = 0.8
+        )
+
+```
+
+Este punto es más curiosidad que otra cosa, porque de la clase energética nos faltan más de la mitad de los valores, lo que ya limita un análisis más profundo. Sin embargo, entre los datos disponibles, es interesante observar que la mayoría de las viviendas en venta tienen una clasificación energética "e". Esto podría reflejar el estado general del parque inmobiliario en España, donde muchas propiedades en el mercado son construcciones más antiguas o viviendas que no han sido modernizadas para cumplir con los estándares energéticos actuales.
+
+No se va a tener en cuenta para análisis posteriores.
+
+```{r}
+properties_spain_sell <- subset(properties_spain_sell, select = -Energy_Class)
+```
+
+
+### Zona, Calle y País
+
+Estas variables, realmente, para el análisis no aportan mucho, porque estaban pensadas de cara a su visualización, por lo que se van a eliminar del dataset, puesto que no aportan nada en en análisis de datos posterior.
+
+```{r}
+properties_spain_sell <- subset(properties_spain_sell, select = -c(Zone, Street, Country))
+```
+
+### Calefación y Ascensor
+
+
+```{r}
+sort(table(properties_spain_sell$Heating), decreasing = TRUE)
+```
+
+```{r}
+sort(table(properties_spain_sell$Elevator), decreasing = TRUE)
+```
+
+A mi forma de ver son variables interesantes de tener en cuenta puesto que se puede analizar si el tipo de calefacción del edificio (sobre todo en comunidades de pisos) y si tiene ascensor pueden incrementar el precio de venta, pero vemos que en cada uno tenemos en torno a un 20% de datos. Posiblemente dependa de la extracción de datos y los valores vacíos sean un "No", pero en vista de que nos falta información, no podemos tener en cuenta estas variables en el análisis posterior.
+
+
+```{r}
+properties_spain_sell <- subset(properties_spain_sell, select = -c(Heating, Elevator))
+```
+
+
+
+### Planta
+
+```{r}
+sort(table(properties_spain_sell$Floor), decreasing = TRUE)
+```
+
+Aquí señalar que se podría hacer una limpieza de estos datos para unificarlos porque actualmente no se puede hacer nada con ellos, pero debido a que faltan la mitad de los registros, podemos eliminar esta variable del dataset, de forma que lo simplificariamos un poco más.
+
+```{r}
+properties_spain_sell <- subset(properties_spain_sell, select = -c(Floor))
+```
+
+## Análisis variables numéricas
+
+### Referencia
+
+Este columna es un valor unico que se utiliza en la web de Tecnocasa como idnetificador. No nos sirve para el análisis y se puede eliminar. 
+
+```{r}
+properties_spain_sell <- subset(properties_spain_sell, select = -c(Reference))
+```
+
+### Fecha de Publicación
+
+Este columna es un valor que registra cuando se publicó en la web. Realmente está en este dataset para luego ampliar el análisis y considerar si sigue publicado o no, por lo que se va a eliminar del dataset
+
+```{r}
+properties_spain_sell <- subset(properties_spain_sell, select = -c(Publish_date))
+```
+
+### Energy_Consumption
+
+```{r}
+summary(properties_spain_sell$Energy_Consumption)
+```
+
+Si que me hubiera gustado meter esta variable en el conjunto de entrenamiento, pero faltan la mitad de los datos por lo que no merece la pena, además, posiblemente el consumo energético dependa más de cada habitante de la propiedad que las métricas que de la inmobiliaria, por lo que se va a eliminar del dataset.
+
+```{r}
+properties_spain_sell <- subset(properties_spain_sell, select = -c(Energy_Consumption))
+```
+
+### Superficie Construida
+
+```{r}
+variable <- properties_spain_sell$Surface
+
+hist(variable, 
+     breaks = 50,
+     probability = TRUE,
+     col = "lightblue",
+     main = "Distribución de Superficie Construida", 
+     xlab = "Superficie Construida", 
+     ylab = "Densidad")
+
+lines(density(variable, na.rm = TRUE), 
+      col = "red",          
+      lwd = 2)             
+
+```
+Como vemos tenemos una gráfica con una gran cola a la derecha, por lo que se van a ver los outliers y se va a proceder a eliminarlos del dataset.
+
+```{r}
+boxplot(properties_spain_sell$Surface, 
+        main = "Boxplot de la superficie construida", 
+        ylab = "Superficie", 
+        col = "lightblue", 
+        notch = TRUE)
+
+```
+```{r}
+Q1 <- quantile(properties_spain_sell$Surface, 0.25, na.rm=TRUE)
+Q3 <- quantile(properties_spain_sell$Surface, 0.75, na.rm=TRUE)
+IQR_value <- IQR(properties_spain_sell$Surface, na.rm=TRUE)
+
+# Definir los límites inferior y superior
+lower_limit <- Q1 - 1.5 * IQR_value
+upper_limit <- Q3 + 1.5 * IQR_value
+
+upper_limit
+```
+
+En vista de estos datos, vamos a eliminar los registros que tienen una superficie inferior a 220 m2 y volveremos a analizar todo a ver como queda
+
+```{r}
+properties_spain_sell <- properties_spain_sell[properties_spain_sell$Surface <= upper_limit,]
+```
+
+```{r}
+variable <- properties_spain_sell$Surface
+
+hist(variable, 
+     breaks = 50,
+     probability = TRUE,
+     col = "lightblue",
+     main = "Distribución de Superficie Construida", 
+     xlab = "Superficie Construida", 
+     ylab = "Densidad")
+
+lines(density(variable, na.rm = TRUE), 
+      col = "red",          
+      lwd = 2)             
+
+```
+
+```{r}
+boxplot(properties_spain_sell$Surface, 
+        main = "Boxplot de la superficie construida", 
+        ylab = "Superficie", 
+        col = "lightblue", 
+        notch = TRUE)
+
+```
+Sigue habiendo outliers, pero hemos eliminado gran parte de los mismos, así que por ahora, se va a dejar como está.
+
+
+
+### Año de construcción
+
+```{r}
+variable <- properties_spain_sell$Year_Construction 
+
+
+hist(variable, 
+     breaks = 100,
+     probability = TRUE,
+     col = "lightblue",
+     main = "Distribución de Año de Construcción", 
+     xlab = "Año de Construcción", 
+     ylab = "Densidad")
+
+# Añadir la curva suavizada (density)
+lines(density(variable, na.rm = TRUE), 
+      col = "red",          # Color de la curva
+      lwd = 2)              # Ancho de la línea
+
+```
+
+
+Respecto a esta variable, vemos que mayoritariamente los pisos se construyeron entre 1960 y los 1980, condicionando con el boom económico español. También se ve reflejada la crisis del 2008 donde se disminuyo dramáticamente la construcción de nuevas propiedades y como a día de hoy todavía no ha vuelto a repuntar. 
+
+```{r}
+
+boxplot(properties_spain_sell$Year_Construction, 
+        main = "Boxplot del Año de Construcción", 
+        ylab = "Año de Construcción", 
+        col = "lightblue", 
+        notch = TRUE)
+
+```
+Nos encontramos con varios outliers en este dataset respecto al año de construcción, al ser pocos podemos eliminarnos del modelo.
+
+```{r}
+Q1 <- quantile(properties_spain_sell$Year_Construction, 0.25, na.rm=TRUE)
+Q3 <- quantile(properties_spain_sell$Year_Construction, 0.75, na.rm=TRUE)
+IQR_value <- IQR(properties_spain_sell$Year_Construction, na.rm=TRUE)
+
+lower_limit <- Q1 - 1.5 * IQR_value
+upper_limit <- Q3 + 1.5 * IQR_value
+
+outliers <- properties_spain_sell$Year_Construction < lower_limit | properties_spain_sell$Year_Construction > upper_limit
+
+
+properties_spain_sell <- properties_spain_sell[!outliers, ]
+```
+
+
+### Baños
+
+
+```{r}
+summary(properties_spain_sell$Bathrooms)
+```
+Tenemos 60 valores nulos en esta variable de 370, lo que equivale a un 16% del dataset, por lo que se puede imputar los valores con el fin de completar esta variable. Al estar con una variable tipo factor, podemos usar o la moda (donde imputariamos todos los registros a que tengan 1 baño) o un método predictivo como el k-NN.
+
+Posiblemente, la imputación con la moda es probablemente el enfoque más sencillo y el más fácil de usar en este caso, puesto que la variable Bathrooms tiene pocos factores distintos.
+
+```{r}
+mode_bathrooms <- as.numeric(names(sort(table(properties_spain_sell$Bathrooms), decreasing = TRUE)[1]))
+
+properties_spain_sell$Bathrooms[is.na(properties_spain_sell$Bathrooms)] <- mode_bathrooms
+```
+
+```{r}
+summary(properties_spain_sell$Bathrooms)
+```
+```{r}
+# Gráfico de barras para una variable factor
+ggplot(properties_spain_sell, aes(x = Bathrooms)) +
+  geom_bar() +
+  xlab("Baños") + 
+  ylab("Frecuencia") +
+  ggtitle("Distribución de propiedades por ciudad")+
+  theme_minimal()
+
+```
+
+
+
+### Precio de Venta
+
+El precio de venta es la variable objetivo.
+
+```{r}
+summary(properties_spain_sell$Sale_Price)
+```
+Vemos que tenemos 3 registros nulos que se nos han colado en el dataset, por lo que podemos borrarlos antes de analizar que pasa con el precio de venta.
+
+```{r}
+properties_spain_sell[is.na(properties_spain_sell$Sale_Price),]
+```
+
+
+```{r}
+#properties_spain_sell <- properties_spain_sell[!is.na(properties_spain_sell$Year_Construction), ]
+```
+
+
+
+
+
+
+
+
+## Analisis del dataset limpio
+
+Utilizando la fórmula `r skim` de la biblioteca `r skimr` se va a realizar un análisis exploratorio con el fin de comprobar en que estado está cada variable, cuantos valores perdidos hay, como es la distribución, entre otras cosas.  
+
+
+
+
+```{r}
+skim(properties_spain_sell)
+```
