@@ -10,6 +10,7 @@ library(stringr)
 library(skimr)
 library(dplyr)
 library(ggplot2)
+library(fastDummies)
 ```
 
 # Carga de datos
@@ -20,19 +21,19 @@ Para el desarrollo de la práctica se va a utilizar el dataset obtenido en la pr
 properties_spain <- read.csv("properties_Spain.csv")
 ```
 
+# Limpieza de los datos
 
-# Análisis preliminar de los datos
+## Análisis preliminar de los datos
 
 ```{r}
 summary(properties_spain)
 ```
 
 ```{r}
-unique(properties_spain)
+nrow(unique(properties_spain))
 ```
 Este dataset contiene columnas numéricas y categóricas, pero, podemos intuir por el resumen anterior que hay variables, como los baños o las habitaciones que deberían ser numéricas y que, por tanto, deberían ser modificadas. Por otro lado, la columna "item" nos muestra que todos los valores son "Na's" por lo que hay que eliminarla. Vemos también que hay registros con valores nulos que no aparecen en el resumen, por lo que habrá que analizar que está pasando para poder cuantificarlo de forma correcta, antes del análisis final. Finalmente podemos ver que no hay registros duplicados, puesto que, si recordamos la práctica 1, lo que hicimos fue traernos todas las propiedades vigentes en venta o alquiler de la página web de Tecnocasa.
 
-# Limpieza de los datos
 
 Lo primero que hacemos es cambiar el formato a las columnas que sabemos que son numéricas, como son el número de baños, las habitaciones y el consumo de energía. También ponemos en formato fecha la columna de fecha de publicación.
 
@@ -65,12 +66,11 @@ properties_spain <- as.data.frame(lapply(properties_spain, function(x) {
 }))
 ```
 
-Utilizando la fórmula `r skim` de la biblioteca `r skimr` se va a realizar un análisis exploratorio con el fin de comprobar en que estado está cada variable, cuantos valores perdidos hay, como es la distribución, entre otras cosas.  
+Utilizando la fórmula *skim* de la librería *skimr* se va a realizar un análisis exploratorio con el fin de comprobar en que estado está cada variable, cuantos valores perdidos hay, como es la distribución, entre otras cosas.  
 
 ```{r}
 skim(properties_spain)
 ```
-
 Podemos ver, por ejemplo, que en las variables categóricas tenemos bastantes valores incompletos, siendo más acusado el ascensor y la calefacción. Por lo que, realmente habrá que pensar si merece la pena mantener esas variables o si las eliminamos. En cuanto al número de habitaciones y baños, vemos que tenemos en torno al 80% de cada variable completado, por lo que quizá podemos utilizar técnicas de imputación de valores para suponer cual es el valor más probable de cada uno, 
 
 
@@ -120,6 +120,8 @@ barplot(frecuencias,
         cex.names = 0.8)
 
 ```
+
+
 Además, en vista de estos datos se va a transformar en factor de cara a futuros análisis.
 
 ```{r}
@@ -174,6 +176,7 @@ barplot(frecuencias,
         )
 
 ```
+
 Del tipo de propiedad, esto es interesante, porque puede aportarnos información adicional, habrá que ver si realmente es. Se puede ver en el diagrama de barras que mayoritariamente las características de propiedades que hay son: media y popular, lo que indica que son pisos y casas asequibles para la mayoría de las personas. Las casas señoriales y de época suelen ser más caras puesto que precisan de un mayor mantenimiento y cuidados y suelen ser más grandes, lo que implica más dinero y menos posibilidades de venta.
 
 ```{r}
@@ -198,12 +201,11 @@ barplot(frecuencias,
         las = 2,
         cex.axis = 0.8
         )
-par(mar = c(5, 4, 4, 2))
 ```
-Además, en vista de estos datos se va a transformar en factor de cara a futuros análisis.
+En vista de los datos, no tiene mucho sentido mantener la ciudad en el análisis porque el número de inmuebles es muy reducido en cada ciuidad y puede repercutir negativamente en el análisis.
 
 ```{r}
-properties_spain$City <- as.factor(properties_spain$City)
+properties_spain_sell <- subset(properties_spain_sell, select = -c(City))
 ```
 
 ### Comunidad autónoma
@@ -224,12 +226,11 @@ barplot(frecuencias,
         las = 2,
         cex.axis = 0.8
         )
-par(mar = c(5, 4, 4, 2))
 ```
-Además, en vista de estos datos se va a transformar en factor de cara a futuros análisis.
+Sin embargo, para evitar un dataset demasiado grande, se va a eliminar del modelo.
 
 ```{r}
-properties_spain$Autonomous_Community <- as.factor(properties_spain$Autonomous_Community)
+properties_spain_sell <- subset(properties_spain_sell, select = -c(Autonomous_Community))
 ```
 
 ### Clase Energética
@@ -350,6 +351,7 @@ lines(density(variable, na.rm = TRUE),
       lwd = 2)             
 
 ```
+
 Como vemos tenemos una gráfica con una gran cola a la derecha, por lo que se van a ver los outliers y se va a proceder a eliminarlos del dataset.
 
 ```{r}
@@ -360,22 +362,11 @@ boxplot(properties_spain_sell$Surface,
         notch = TRUE)
 
 ```
-```{r}
-Q1 <- quantile(properties_spain_sell$Surface, 0.25, na.rm=TRUE)
-Q3 <- quantile(properties_spain_sell$Surface, 0.75, na.rm=TRUE)
-IQR_value <- IQR(properties_spain_sell$Surface, na.rm=TRUE)
 
-# Definir los límites inferior y superior
-lower_limit <- Q1 - 1.5 * IQR_value
-upper_limit <- Q3 + 1.5 * IQR_value
-
-upper_limit
-```
-
-En vista de estos datos, vamos a eliminar los registros que tienen una superficie inferior a 220 m2 y volveremos a analizar todo a ver como queda
+En vista de estos datos, vamos a eliminar los registros que tienen una superficie inferior a 500 m2 y volveremos a analizar todo a ver como queda de cara que luego podamos analizar estudiar los outliers de forma multivariante.
 
 ```{r}
-properties_spain_sell <- properties_spain_sell[properties_spain_sell$Surface <= upper_limit,]
+properties_spain_sell <- properties_spain_sell[properties_spain_sell$Surface <= 500,]
 ```
 
 ```{r}
@@ -403,11 +394,17 @@ boxplot(properties_spain_sell$Surface,
         notch = TRUE)
 
 ```
-Sigue habiendo outliers, pero hemos eliminado gran parte de los mismos, así que por ahora, se va a dejar como está.
+
+Sigue habiendo outliers, pero hemos eliminado gran parte de los mismos, así que por ahora, se va a dejar.
 
 
 
 ### Año de construcción
+
+```{r}
+summary(properties_spain_sell$Year_Construction)
+```
+
 
 ```{r}
 variable <- properties_spain_sell$Year_Construction 
@@ -432,30 +429,14 @@ lines(density(variable, na.rm = TRUE),
 Respecto a esta variable, vemos que mayoritariamente los pisos se construyeron entre 1960 y los 1980, condicionando con el boom económico español. También se ve reflejada la crisis del 2008 donde se disminuyo dramáticamente la construcción de nuevas propiedades y como a día de hoy todavía no ha vuelto a repuntar. 
 
 ```{r}
-
 boxplot(properties_spain_sell$Year_Construction, 
         main = "Boxplot del Año de Construcción", 
         ylab = "Año de Construcción", 
         col = "lightblue", 
         notch = TRUE)
-
-```
-Nos encontramos con varios outliers en este dataset respecto al año de construcción, al ser pocos podemos eliminarnos del modelo.
-
-```{r}
-Q1 <- quantile(properties_spain_sell$Year_Construction, 0.25, na.rm=TRUE)
-Q3 <- quantile(properties_spain_sell$Year_Construction, 0.75, na.rm=TRUE)
-IQR_value <- IQR(properties_spain_sell$Year_Construction, na.rm=TRUE)
-
-lower_limit <- Q1 - 1.5 * IQR_value
-upper_limit <- Q3 + 1.5 * IQR_value
-
-outliers <- properties_spain_sell$Year_Construction < lower_limit | properties_spain_sell$Year_Construction > upper_limit
-
-
-properties_spain_sell <- properties_spain_sell[!outliers, ]
 ```
 
+Nos encontramos con varios outliers en este dataset respecto al año de construcción, al ser pocos podemos eliminarnos del modelo en el analisis de outliers multivariente posterior y vemos que nos faltan 3 años, los cuales podremos imputarlos despues del analisis de outliers.
 
 ### Baños
 
@@ -477,14 +458,67 @@ properties_spain_sell$Bathrooms[is.na(properties_spain_sell$Bathrooms)] <- mode_
 summary(properties_spain_sell$Bathrooms)
 ```
 ```{r}
-# Gráfico de barras para una variable factor
-ggplot(properties_spain_sell, aes(x = Bathrooms)) +
+ggplot(properties_spain_sell, aes(x = Bathrooms, fill = factor(Bathrooms))) +
   geom_bar() +
   xlab("Baños") + 
   ylab("Frecuencia") +
-  ggtitle("Distribución de propiedades por ciudad")+
-  theme_minimal()
+  ggtitle("Distribución de baños por propiedad")+
+  theme_minimal() +
+  theme(panel.grid = element_blank(),
+      axis.line = element_line(colour = "black")) + 
+  scale_fill_brewer(palette = "Set3") +   
+  labs(fill = "Número de Baños")
+```
 
+
+### Habitaciones
+
+
+```{r}
+summary(properties_spain_sell$Bedrooms)
+```
+Tenemos 53 valores nulos en esta variable de 370, lo que equivale a un 13% del dataset. 
+
+```{r}
+ggplot(properties_spain_sell, aes(x = Bedrooms, fill = factor(Bedrooms))) +
+  geom_bar() +
+  xlab("Habitaciones") + 
+  ylab("Frecuencia") +
+  ggtitle("Distribución de Habitaciones por propiedad")+
+  theme_minimal() +
+  theme(panel.grid = element_blank(),
+      axis.line = element_line(colour = "black")) + 
+  scale_fill_brewer(palette = "Set3") +   
+  labs(fill = "Número de Habitaciones")
+```
+
+Al igual que en el caso anterior, se va a imputar el valor "Na" por la moda del número de habitaciones, el cual es 3, en este caso. 
+
+```{r}
+moda <- as.numeric(names(sort(table(properties_spain_sell$Bedrooms), decreasing = TRUE)[1]))
+
+properties_spain_sell$Bedrooms[is.na(properties_spain_sell$Bedrooms)] <- moda
+
+properties_spain_sell$Bedrooms <- droplevels(properties_spain_sell$Bedrooms)
+```
+
+
+```{r}
+summary(properties_spain_sell$Bedrooms)
+```
+
+
+```{r}
+ggplot(properties_spain_sell, aes(x = Bedrooms, fill = factor(Bedrooms))) +
+  geom_bar() +
+  xlab("Habitaciones") + 
+  ylab("Frecuencia") +
+  ggtitle("Distribución de Habitaciones por propiedad")+
+  theme_minimal() +
+  theme(panel.grid = element_blank(),
+      axis.line = element_line(colour = "black")) + 
+  scale_fill_brewer(palette = "Set3") +   
+  labs(fill = "Número de Habitaciones")
 ```
 
 
@@ -496,31 +530,167 @@ El precio de venta es la variable objetivo.
 ```{r}
 summary(properties_spain_sell$Sale_Price)
 ```
-Vemos que tenemos 3 registros nulos que se nos han colado en el dataset, por lo que podemos borrarlos antes de analizar que pasa con el precio de venta.
-
-```{r}
-properties_spain_sell[is.na(properties_spain_sell$Sale_Price),]
-```
 
 
 ```{r}
-#properties_spain_sell <- properties_spain_sell[!is.na(properties_spain_sell$Year_Construction), ]
+variable <- properties_spain_sell$Sale_Price
+
+
+hist(variable, 
+     breaks = 100,
+     probability = TRUE,
+     col = "lightblue",
+     main = "Distribución del Precio de Venta", 
+     xlab = "Precio de venta", 
+     ylab = "Densidad")
+
+# Añadir la curva suavizada (density)
+lines(density(variable, na.rm = TRUE), 
+      col = "red",          # Color de la curva
+      lwd = 2)              # Ancho de la línea
+
 ```
 
+Lo que se puede ver en esta variables es que la mayoría de las viviendas tienen un precio de hasta 40.000 €, lo cual puede ser indicativo del estado, año de construcción u otras características...
 
+```{r}
 
+boxplot(properties_spain_sell$Sale_Price, 
+        main = "Boxplot del Precio de Venta", 
+        ylab = "Precio de Venta", 
+        col = "lightblue", 
+        notch = TRUE)
 
+```
 
-
-
+Vemos que existen outliers de manera única, pero lo mejor es, en este caso, estudiar de manera conjunta los datos, tal y como se verá en el siguiente apartado. 
 
 ## Analisis del dataset limpio
-
-Utilizando la fórmula `r skim` de la biblioteca `r skimr` se va a realizar un análisis exploratorio con el fin de comprobar en que estado está cada variable, cuantos valores perdidos hay, como es la distribución, entre otras cosas.  
-
-
 
 
 ```{r}
 skim(properties_spain_sell)
 ```
+
+Los valores que nos faltan del año de construcción se podrían imputar o eliminar. En este caso, por simplifidad, se van a eliminar.
+
+```{r}
+properties_spain_sell <- properties_spain_sell[!is.na(properties_spain_sell$Year_Construction),]
+```
+
+
+### Detección de Outliers: PCA y distancia de Mahalanobis
+
+Para analizar los outliers de este dataset de forma conjunta se va a utilizar el análisis de componentes principales (PCA, por sus siglas en inglés). Vamos a convertir cada variable factor en una columna binaria para evitar suposiciones de orden.
+
+
+```{r}
+properties_spain_encoded <- dummy_cols(properties_spain_sell, 
+                                       select_columns = c("Bathrooms", "Bedrooms", "Property_Type", "Property"),
+                                       remove_first_dummy = TRUE,  # Opcional: evita colinealidad
+                                       remove_selected_columns = TRUE)
+
+# Seleccionar las variables numéricas
+numeric_vars <- properties_spain_encoded[, c("Year_Construction", "Sale_Price", "Surface")]
+
+# Normalizar las variables
+numeric_vars_scaled <- scale(numeric_vars)
+
+# Reemplazar en el dataset
+properties_spain_encoded[, c("Year_Construction", "Price", "Surface")] <- numeric_vars_scaled
+
+```
+
+
+
+```{r}
+# Aplicar PCA
+pca_result <- prcomp(properties_spain_encoded, scale. = TRUE)
+
+# Resumen de la varianza explicada
+summary(pca_result)
+``` 
+
+
+```{r}
+# Obtener la desviación estándar de cada componente
+sdev <- pca_result$sdev
+
+# Calcular la varianza explicada (al cuadrar la desviación estándar)
+var_explained <- sdev^2
+
+# Calcular la proporción de varianza explicada
+prop_var_explained <- var_explained / sum(var_explained)
+
+# Calcular la varianza acumulada
+cumulative_var_explained <- cumsum(prop_var_explained)
+
+# Graficar la varianza acumulada
+plot(cumulative_var_explained, type="b", main="Cumulative Proportion of Variance Explained",
+     xlab="Principal Components", ylab="Cumulative Proportion of Variance", col="blue", pch=19)
+
+```
+
+
+```{r}
+# Obtener la desviación estándar de cada componente
+sdev <- pca_result$sdev
+
+# Calcular la varianza explicada (al cuadrar la desviación estándar)
+var_explained <- sdev^2
+
+# Calcular la proporción de varianza explicada
+prop_var_explained <- var_explained / sum(var_explained)
+
+plot(prop_var_explained, type="b", pch=19, col="blue", xlab="Número de componentes principales", 
+     ylab="Proporción de varianza explicada", main="Gráfico de la proporción de varianza explicada")
+
+```
+
+En vista de este análisis 12 PCA explicarían el 92% de la varianza de los datos y podríamos usarlo para eliminar los outliers del modelo
+
+
+```{r}
+# Visualizar las primeras dos componentes principales
+pca_data <- data.frame(pca_result$x[, 1:12])
+
+
+# Calcular la matriz de covarianza y la distancia de Mahalanobis
+cov_matrix <- cov(pca_data) 
+
+
+# Calcular la media de las puntuaciones de PCA
+mean_data <- colMeans(pca_data)
+
+
+# Calcular la distancia de Mahalanobis para cada observación
+mahal_dist <- mahalanobis(pca_data, center = mean_data, cov = cov_matrix)
+
+
+# Definir el umbral usando la distribución chi-cuadrada
+threshold <- qchisq(0.95, df = 12) 
+
+# Identificar los outliers
+outliers <- mahal_dist > threshold
+
+# Ver los índices de los outliers
+which(outliers)
+
+# Eliminar los outliers
+cleaned_properties <- properties_spain_encoded[!outliers, ]
+
+```
+
+
+Vemos, tras el análisis, que tenemos varios puntos que son outliers en nuestro dataset y que, por tanto, debemos eliminar del modelo antes de proceder a realizar el análisis de los datos
+
+
+
+```{r}
+skim(cleaned_properties)
+```
+
+# Análisis de los datos
+
+
+
