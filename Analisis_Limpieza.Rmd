@@ -777,7 +777,7 @@ cleaned_properties$Bedrooms <- droplevels(cleaned_properties$Bedrooms)
 
 
 ```{r}
-write.csv(cleaned_properties, file = "cleaned_properties_Spain .csv", row.names = FALSE)
+write.csv(cleaned_properties, file = "cleaned_properties_Spain.csv", row.names = FALSE)
 ```
 
 
@@ -1096,6 +1096,13 @@ ggplot(predictors, aes(x = Surface, y = Year_Construction, color = factor(Cluste
   labs(color = "Cluster") +
   theme_minimal()
 ```
+
+```{r}
+aggregate(obj_Y$Sale_Price, by = list(Cluster = predictors$Cluster), FUN = mean)
+```
+```
+
+
 
 ## Prueba por contraste de hipótesis
 
