@@ -11,6 +11,11 @@ library(skimr)
 library(dplyr)
 library(ggplot2)
 library(fastDummies)
+library(randomForest)
+library(car)
+library(cluster)
+library(FNN)
+library(dbscan)
 ```
 
 # Carga de datos
@@ -179,8 +184,10 @@ barplot(frecuencias,
 
 Del tipo de propiedad, esto es interesante, porque puede aportarnos información adicional, habrá que ver si realmente es. Se puede ver en el diagrama de barras que mayoritariamente las características de propiedades que hay son: media y popular, lo que indica que son pisos y casas asequibles para la mayoría de las personas. Las casas señoriales y de época suelen ser más caras puesto que precisan de un mayor mantenimiento y cuidados y suelen ser más grandes, lo que implica más dinero y menos posibilidades de venta.
 
+Sin embargo, puede ser una variable que distorsione el modelo por lo que no se va a tener en cuenta. 
+
 ```{r}
-properties_spain_sell$Property_Type <- as.factor(properties_spain_sell$Property_Type)
+properties_spain_sell <- subset(properties_spain_sell, select = -c((Property_Type)))
 ```
 
 ### Ciudad
@@ -202,7 +209,7 @@ barplot(frecuencias,
         cex.axis = 0.8
         )
 ```
-En vista de los datos, no tiene mucho sentido mantener la ciudad en el análisis porque el número de inmuebles es muy reducido en cada ciuidad y puede repercutir negativamente en el análisis.
+En vista de los datos, no tiene mucho sentido mantener la ciudad en el análisis porque el número de inmuebles es muy reducido en cada ciudad y puede repercutir negativamente en el análisis.
 
 ```{r}
 properties_spain_sell <- subset(properties_spain_sell, select = -c(City))
@@ -366,7 +373,7 @@ boxplot(properties_spain_sell$Surface,
 En vista de estos datos, vamos a eliminar los registros que tienen una superficie inferior a 500 m2 y volveremos a analizar todo a ver como queda de cara que luego podamos analizar estudiar los outliers de forma multivariante.
 
 ```{r}
-properties_spain_sell <- properties_spain_sell[properties_spain_sell$Surface <= 500,]
+#properties_spain_sell <- properties_spain_sell[properties_spain_sell$Surface <= 500,]
 ```
 
 ```{r}
@@ -530,11 +537,11 @@ El precio de venta es la variable objetivo.
 ```{r}
 summary(properties_spain_sell$Sale_Price)
 ```
+Vemos, en este punto que el máximo está muy lejos del tercer cuartil, por lo que se va a tener que eliminar, porque debe ser un punto atípico. Veamos antes como son las distribución de esta varaible.
 
 
 ```{r}
 variable <- properties_spain_sell$Sale_Price
-
 
 hist(variable, 
      breaks = 100,
@@ -563,7 +570,33 @@ boxplot(properties_spain_sell$Sale_Price,
 
 ```
 
-Vemos que existen outliers de manera única, pero lo mejor es, en este caso, estudiar de manera conjunta los datos, tal y como se verá en el siguiente apartado. 
+Vemos que existen outliers de manera única, muy alejados del resto, por lo que se van a eliminar.
+
+```{r}
+Q1 <- quantile(properties_spain_sell$Sale_Price, 0.25)
+Q3 <- quantile(properties_spain_sell$Sale_Price, 0.75)
+IQR_value <- IQR(properties_spain_sell$Sale_Price)
+
+# Definir los límites inferior y superior
+lower_limit <- Q1 - 1.5 * IQR_value
+upper_limit <- Q3 + 1.5 * IQR_value
+
+# Eliminar los valores atípicos (outliers)
+properties_spain_sell <- properties_spain_sell[properties_spain_sell$Sale_Price >= lower_limit & properties_spain_sell$Sale_Price <= upper_limit,]
+```
+
+
+
+```{r}
+
+boxplot(properties_spain_sell$Sale_Price, 
+        main = "Boxplot del Precio de Venta", 
+        ylab = "Precio de Venta", 
+        col = "lightblue", 
+        notch = TRUE)
+
+```
+
 
 ## Analisis del dataset limpio
 
@@ -571,6 +604,12 @@ Vemos que existen outliers de manera única, pero lo mejor es, en este caso, est
 ```{r}
 skim(properties_spain_sell)
 ```
+Vemos que no hay inmuebles con 4 baños, por lo que vamos a eliminarlo del factor.
+
+```{r}
+properties_spain_sell$Bathrooms <- droplevels(properties_spain_sell$Bathrooms)
+```
+
 
 Los valores que nos faltan del año de construcción se podrían imputar o eliminar. En este caso, por simplifidad, se van a eliminar.
 
@@ -586,8 +625,7 @@ Para analizar los outliers de este dataset de forma conjunta se va a utilizar el
 
 ```{r}
 properties_spain_encoded <- dummy_cols(properties_spain_sell, 
-                                       select_columns = c("Bathrooms", "Bedrooms", "Property_Type", "Property"),
-                                       remove_first_dummy = TRUE,  # Opcional: evita colinealidad
+                                       select_columns = c("Bathrooms", "Bedrooms", "Property"),
                                        remove_selected_columns = TRUE)
 
 # Seleccionar las variables numéricas
@@ -597,10 +635,9 @@ numeric_vars <- properties_spain_encoded[, c("Year_Construction", "Sale_Price", 
 numeric_vars_scaled <- scale(numeric_vars)
 
 # Reemplazar en el dataset
-properties_spain_encoded[, c("Year_Construction", "Price", "Surface")] <- numeric_vars_scaled
+properties_spain_encoded[, c("Year_Construction", "Sale_Price", "Surface")] <- numeric_vars_scaled
 
 ```
-
 
 
 ```{r}
@@ -647,25 +684,23 @@ plot(prop_var_explained, type="b", pch=19, col="blue", xlab="Número de componen
 
 ```
 
-En vista de este análisis 12 PCA explicarían el 92% de la varianza de los datos y podríamos usarlo para eliminar los outliers del modelo
+En vista de este análisis 11 PCA explicarían el 90% de la varianza de los datos y podríamos usarlo para eliminar los outliers del modelo.
 
 
 ```{r}
-# Visualizar las primeras dos componentes principales
-pca_data <- data.frame(pca_result$x[, 1:12])
+pca_data <- data.frame(pca_result$x[, 1:11])
+```
 
 
+```{r}
 # Calcular la matriz de covarianza y la distancia de Mahalanobis
 cov_matrix <- cov(pca_data) 
-
 
 # Calcular la media de las puntuaciones de PCA
 mean_data <- colMeans(pca_data)
 
-
 # Calcular la distancia de Mahalanobis para cada observación
 mahal_dist <- mahalanobis(pca_data, center = mean_data, cov = cov_matrix)
-
 
 # Definir el umbral usando la distribución chi-cuadrada
 threshold <- qchisq(0.95, df = 12) 
@@ -675,22 +710,394 @@ outliers <- mahal_dist > threshold
 
 # Ver los índices de los outliers
 which(outliers)
-
-# Eliminar los outliers
-cleaned_properties <- properties_spain_encoded[!outliers, ]
-
 ```
 
+Dibujamos algunos de los PCA para ver como se reparten los outliers, previo borrado del dataset.
 
-Vemos, tras el análisis, que tenemos varios puntos que son outliers en nuestro dataset y que, por tanto, debemos eliminar del modelo antes de proceder a realizar el análisis de los datos
+```{r}
+pca_data$outlier <- outliers
+```
+
+```{r}
+ggplot(pca_data, aes(x = PC1, y = PC2, color = outlier)) +
+  geom_point(size = 2) +
+  labs(
+    title = "Visualización de Outliers en los Componentes Principales (PCA)",
+    x = "Componente Principal 1 (PC1)",
+    y = "Componente Principal 2 (PC2)",
+    color = "Outlier"
+  ) +
+  theme_minimal() +
+  scale_color_manual(values = c("FALSE" = "black", "TRUE" = "red"))
+```
+```{r}
+ggplot(pca_data, aes(x = PC1, y = PC3, color = outlier)) +
+  geom_point(size = 2) +
+  labs(
+    title = "Visualización de Outliers en los Componentes Principales (PCA)",
+    x = "Componente Principal 1 (PC1)",
+    y = "Componente Principal 3 (PC3)",
+    color = "Outlier"
+  ) +
+  theme_minimal() +
+  scale_color_manual(values = c("FALSE" = "black", "TRUE" = "red"))
+```
+```{r}
+ggplot(pca_data, aes(x = PC2, y = PC3, color = outlier)) +
+  geom_point(size = 2) +
+  labs(
+    title = "Visualización de Outliers en los Componentes Principales (PCA)",
+    x = "Componente Principal 2 (PC2)",
+    y = "Componente Principal 3 (PC3)",
+    color = "Outlier"
+  ) +
+  theme_minimal() +
+  scale_color_manual(values = c("FALSE" = "black", "TRUE" = "red"))
+```
+
+Si que vemos en las gráficas que hay una gran dispersión en los datos atípicos que pueden distorsionarnos los resultados, por lo que, finalmente eliminamos los outliers del dataset para poder trabajar con en los posteriores análisis.
 
 
+
+```{r}
+cleaned_properties <- properties_spain_sell[!outliers, ]
+```
+
+Vemos, tras el análisis, que tenemos varios puntos que son outliers en nuestro dataset y que, por tanto, debemos eliminar del modelo antes de proceder a realizar el análisis de los datos. Además lo borramos del dataset que ya tenemos preparado con todas las variables numéricas, lo cual nos va a servir para aplicar los modelos de análisis posteriores.
 
 ```{r}
 skim(cleaned_properties)
 ```
 
+Vemos que no hay inmuebles con 1 habitación, por lo que vamos a eliminarlo del factor.
+
+```{r}
+cleaned_properties$Bedrooms <- droplevels(cleaned_properties$Bedrooms)
+```
+
+
+```{r}
+write.csv(cleaned_properties, file = "cleaned_properties_Spain .csv", row.names = FALSE)
+```
+
+
 # Análisis de los datos
+
+El objetivo de este análisis es predecir una variable numérica continua ("Sale_Price"), por lo que los métodos adecuados podrían ser:
+
+- Métodos Supervisados 
+  1. Regresión Lineal Múltiple
+  2. Árboles de Decisión
+  3. Random Forest
+  4. Gradient Boosting
+  5. Red Neuronal
+
+## Separación de la variable objetivo y llas varaibles predictoras
+
+```{r}
+obs_X <- subset(cleaned_properties, select = c(-Sale_Price))
+obj_Y <- subset(cleaned_properties, select = c(Sale_Price))
+```
+
+## Reescalado de las variables predictoras
+
+```{r}
+obs_X_encoded <- dummy_cols(obs_X, 
+                            select_columns = c("Bathrooms", "Bedrooms", "Property"),
+                            remove_first_dummy = TRUE,  # Opcional: evita colinealidad
+                            remove_selected_columns = TRUE)
+
+# Seleccionar las variables numéricas
+numeric_vars <- obs_X_encoded[, c("Year_Construction", "Surface")]
+
+# Normalizar las variables
+numeric_vars_scaled <- scale(numeric_vars)
+
+# Reemplazar en el dataset
+obs_X_encoded[, c("Year_Construction", "Surface")] <- numeric_vars_scaled
+
+```
+
+
+## Colinealidad de las variables
+  
+
+Lo primero que vamos a analizar es si con las variables que tenemos, presentamos colinealidad con el fin de eliminarla antes de realizar los métodos supervisados y no supervisados.
+
+
+```{r}
+cor(obs_X_encoded)
+```
+```{r}
+data_encoded <- obs_X_encoded
+data_encoded$Sale_Price <- obj_Y$Sale_Price
+vif(lm(Sale_Price ~ ., data = data_encoded))
+```
+Si analizamos el VIF y la matriz de colinealidad, vemos que no se presenta colinealidad entre los datos elegidos, por lo que podemos seguir adelante sin eliminar varaibles del modelo.
+
+
+
+## Métodos Supervisados
+
+Respecto a los métodos supervisados, se va a aplicar en primera instancia una Regresión Lineal, por tantear el comportamiento de los datos para, después aplicar uno de los otros métodos.
+
+### Regresión Lineal
+
+```{r}
+model <- lm(Sale_Price ~ ., data = data_encoded)
+summary(model)
+```
+Aunque no tenemos mucha información de este modelo y, realmente no nos sirve, si que podemos intuir que el numero de baños, si es casa o piso y la superficie construida influyen significativamente en el precio de la vivienda.
+
+
+```{r}
+predicted_prices <- predict(model, newdata = data_encoded)
+# Calcular el RMSE
+actual_prices <- cleaned_properties$Sale_Price
+rmse_lm <- sqrt(mean((actual_prices - predicted_prices)^2))
+print(paste("RMSE para la regresión lineal:", rmse_lm))
+```
+```{r}
+ggplot(data = data_encoded, aes(x = actual_prices, y = predicted_prices)) +
+  geom_point(alpha = 0.6) +
+  geom_abline(slope = 1, intercept = 0, color = "red") +
+  xlab("Precios reales") +
+  ylab("Precios predichos") +
+  ggtitle("Comparación de precios reales vs. predichos") +
+  theme_minimal()
+```
+
+
+### K-NN
+
+```{r}
+set.seed(42)
+
+train_index <- sample(1:nrow(obs_X_encoded), 0.8 * nrow(obs_X_encoded))
+train_data <- obs_X_encoded[train_index, ]
+test_data <- obs_X_encoded[-train_index, ]
+
+# Variables objetivo para entrenamiento y prueba
+train_target <- obj_Y$Sale_Price[train_index]
+test_target <- obj_Y$Sale_Price[-train_index]
+```
+
+
+```{r}
+# Probar diferentes valores de k
+rmse_values <- c()
+for (k in 1:50) {
+  knn_model <- knn.reg(train = train_data, test = test_data, y = train_target, k = k)
+  predictions <- knn_model$pred
+  rmse <- sqrt(mean((test_target - predictions)^2))
+  rmse_values <- c(rmse_values, rmse)
+}
+
+# Graficar RMSE vs k
+plot(1:50, rmse_values, type = "b", xlab = "Número de vecinos (k)", ylab = "RMSE")
+
+
+```
+```{r}
+k <- 30
+
+knn_model <- knn.reg(train = train_data, test = test_data, y = train_target, k = k)
+
+# Predicciones
+predictions <- knn_model$pred
+
+rmse <- sqrt(mean((test_target - predictions)^2))
+print(paste("RMSE:", rmse))
+
+# Calcular R²
+sst <- sum((test_target - mean(test_target))^2)
+sse <- sum((test_target - predictions)^2)
+r_squared <- 1 - (sse / sst)
+print(paste("R²:", round(r_squared,4)))
+```
+
+
+## Métodos no supervisados
+
+Para los métodos no supervisados 
+
+### K-Means
+
+```{r}
+# Calcular la suma de las distancias intra-clúster (inertia) para diferentes k
+wss <- sapply(1:15, function(k) {
+  kmeans(obs_X_encoded, centers = k, nstart = 25)$tot.withinss
+})
+
+# Graficar el método del codo
+plot(1:15, wss, type = "b", pch = 19, frame = FALSE,
+     xlab = "Número de Clústeres (k)", ylab = "Suma de Cuadrados Intra-Clúster (WSS)")
+```
+
+```{r}
+predictors <- obs_X_encoded
+
+# Probar diferentes valores de k y calcular la silueta promedio
+sil_width <- sapply(2:10, function(k) {
+  pam(predictors, k = k)$silinfo$avg.width
+})
+
+# Graficar el coeficiente de silueta
+plot(2:10, sil_width, type = "b", pch = 19, frame = FALSE,
+     xlab = "Número de Clústeres (k)", ylab = "Coeficiente de Silueta")
+```
+```{r}
+k = 8
+
+kmeans_model <- kmeans(predictors, centers = k, nstart = 25)
+
+# Agregar los clústeres al dataset original
+predictors$Cluster <- kmeans_model$cluster
+```
+
+```{r}
+table(kmeans_model$cluster)
+```
+```{r}
+aggregate(predictors[, -ncol(predictors)], by = list(Cluster = predictors$Cluster), FUN = mean)
+```
+
+```{r}
+# Visualizar los clústeres en 2D
+ggplot(predictors, aes(x = Surface, y = Year_Construction, color = factor(Cluster))) +
+  geom_point() +
+  labs(color = "Cluster") +
+  theme_minimal()
+```
+```{r}
+aggregate(obj_Y$Sale_Price, by = list(Cluster = predictors$Cluster), FUN = mean)
+```
+
+
+Razón para excluir Sale_Price
+
+K-Means crea clústeres basados en la distancia:
+
+Si incluyes Sale_Price, el algoritmo tenderá a agrupar propiedades según esta variable en lugar de considerar un balance de todas las características. Esto podría resultar en clústeres sesgados o poco interpretables.
+
+La variable Sale_Price ya es una función de otras variables:
+
+En tu análisis supervisado, Sale_Price es el resultado de una combinación de las otras variables. Al incluirla en K-Means, estás introduciendo redundancia y potencialmente distorsionando los clústeres.
+
+### DBSCAN
+
+```{r}
+predictors <- obs_X_encoded
+```
+
+
+```{r}
+dbscan_model <- dbscan(predictors, eps = 1, minPts = 5)
+
+# Ver los resultados
+print(dbscan_model)
+
+# Asignar los clústeres al dataset original
+predictors$Cluster <- dbscan_model$cluster
+
+```
+
+
+```{r}
+# Valores de `eps` y `minPts` a probar
+eps_values <- seq(0.02, 2, by = 0.02)  # Cambia según el rango esperado de `eps`
+minPts_values <- c(5, 10, 15, 20)       # Cambia según el dataset
+
+# Dataframe para almacenar resultados
+results <- data.frame(
+  eps = numeric(0),
+  minPts = numeric(0),
+  clusters = integer(0),
+  noise_points = integer(0)
+)
+
+# Iterar sobre los valores
+for (eps in eps_values) {
+  for (minPts in minPts_values) {
+    predictors <- obs_X_encoded
+    # Aplicar DBSCAN
+    dbscan_model <- dbscan(predictors, eps = eps, minPts = minPts)
+    
+    # Contar número de clústeres (excluyendo el ruido, que es cluster 0)
+    num_clusters <- length(unique(dbscan_model$cluster[dbscan_model$cluster > 0]))
+    
+    # Contar puntos de ruido
+    noise_points <- sum(dbscan_model$cluster == 0)
+    
+    # Guardar resultados
+    results <- rbind(
+      results,
+      data.frame(
+        eps = eps,
+        minPts = minPts,
+        clusters = num_clusters,
+        noise_points = noise_points
+      )
+    )
+  }
+}
+```
+
+
+```{r}
+ggplot(results, aes(x = eps, y = clusters, color = factor(minPts))) +
+  geom_line() +
+  geom_point() +
+  labs(
+    title = "Número de clústeres vs. eps y minPts",
+    x = "eps",
+    y = "Número de clústeres",
+    color = "minPts"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+ggplot(results, aes(x = eps, y = noise_points, color = factor(minPts))) +
+  geom_line() +
+  geom_point() +
+  labs(
+    title = "Número de puntos de ruido vs. eps y minPts",
+    x = "eps",
+    y = "Número de puntos de ruido",
+    color = "minPts"
+  ) +
+  theme_minimal()
+
+```
+
+```{r}
+results_filtered <- results[results$clusters > 2,]
+# Ver los resultados
+min <- min(results_filtered$noise_points)
+optimal_config <- results_filtered[results_filtered$noise_points == min,]
+print(optimal_config)
+```
+
+
+```{r}
+optimal_eps <- optimal_config$eps[1]
+optimal_minPts <- optimal_config$minPts[1]
+
+dbscan_model <- dbscan(predictors, eps = optimal_eps, minPts = optimal_minPts)
+
+```
+
+```{r}
+predictors$Cluster <- kmeans_model$cluster
+
+ggplot(predictors, aes(x = Surface, y = Year_Construction, color = factor(Cluster))) +
+  geom_point() +
+  labs(color = "Cluster") +
+  theme_minimal()
+```
+
+## Prueba por contraste de hipótesis
 
 
 
