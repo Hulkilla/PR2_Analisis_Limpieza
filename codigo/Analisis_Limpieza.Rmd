@@ -1,8 +1,9 @@
 ---
-title: "Analisis_Limpieza"
-author: "Marina Fernández Delgado"
+title: 'Práctica 2: Analisis y Limpieza de un Conjunto de Datos obtenidos por Web
+  Scrapping'
 date: "`r Sys.Date()`"
-output: html_document
+output:
+  html_document: default
 ---
 
 ```{r}
@@ -20,10 +21,10 @@ library(dbscan)
 
 # Carga de datos
 
-Para el desarrollo de la práctica se va a utilizar el dataset obtenido en la práctica de Web Scraping, el cual cuenta con 541 registros y 22 variables. Se han hecho unas modificaciones respecto al dataset de la primera práctica, puesto que se han añadido 3 columnas más que nos proporcionan másimformación, como son el título de la propiedad y la url del mismo.
+Para el desarrollo de la práctica se va a utilizar el dataset obtenido en la práctica de Web Scraping, el cual cuenta con 541 registros y 22 variables. Se han hecho unas modificaciones respecto al dataset de la primera práctica, puesto que se han añadido 3 columnas más que nos proporcionan más información, como son el título de la propiedad y la url del mismo.
 
 ```{r setup}
-properties_spain <- read.csv("properties_Spain.csv")
+properties_spain <- read.csv("../properties_Spain.csv")
 ```
 
 # Limpieza de los datos
@@ -777,7 +778,7 @@ cleaned_properties$Bedrooms <- droplevels(cleaned_properties$Bedrooms)
 
 
 ```{r}
-write.csv(cleaned_properties, file = "cleaned_properties_Spain.csv", row.names = FALSE)
+write.csv(cleaned_properties, file = "../cleaned_properties_Spain.csv", row.names = FALSE)
 ```
 
 
@@ -1100,11 +1101,144 @@ ggplot(predictors, aes(x = Surface, y = Year_Construction, color = factor(Cluste
 ```{r}
 aggregate(obj_Y$Sale_Price, by = list(Cluster = predictors$Cluster), FUN = mean)
 ```
-```
 
 
 
 ## Prueba por contraste de hipótesis
 
+Para esta prueba, lo que se va a contrastar es si realmente hay diferencias entre el *valor promedio* del precio por metro cuadrado entre casas y pisos. Para ello, a partir del data frame con los datos limpios "cleaned_properties" se va a transformar para obtener una columna que sea "propiedad" y otra que sea "precio/m2" 
 
+```{r}
+cleaned_properties$Sale_m2 = cleaned_properties$Sale_Price / cleaned_properties$Surface 
+```
+
+
+```{r}
+cleaned_properties %>%
+  group_by(Property) %>%
+  summarize(
+    Mean_Sale_m2 = mean(Sale_m2, na.rm = TRUE),
+    SD_Sale_m2 = sd(Sale_m2, na.rm = TRUE),
+    Median_Sale_m2 = median(Sale_m2, na.rm = TRUE),
+    Robust_SD_Sale_m2 = mad(Sale_m2, na.rm = TRUE) # Desviación estándar robusta
+  )
+```
+
+Las hipótesis deberían ser las que siguen:
+
+$$H_0: \mu_1 = \mu_2$$ 
+
+$$H_1: \mu_1 \neq \mu_2$$
+
+Se va a estudiar el **valor promedio de precio por metro cuadrado** y si hay diferencias en función de distintas variables. 
+
+En caso de que la muestra siguiera una distribución normal, el test de contraste de hipótesis que se va a hacer es un test de contraste bilateral de dos muestras independientes sobre la media de la variable de interés (precio por metro cuadrado) con varianzas desconocidas. Como se desconocen las varianzas, habrá que hacer un test de homoscedasticidad para comprobar si podemos considerar varianzas iguales o diferentes. Pero esto se puede implementar dentro de la función de contraste. Sin embargo, si la muestra no siguiera una distribución normal, el test que se va a realizar es la prueba no paramétrica de Mann-Whitney-Wilcoxon.
+
+```{r}
+limitValue = 1.5
+alpha = 0.05
+  
+array1 <- cleaned_properties$Sale_m2[cleaned_properties$Property == "Piso"]
+array2 <- cleaned_properties$Sale_m2[cleaned_properties$Property == "Casa"]
+
+array1 <- na.omit(array1)
+array2 <- na.omit(array2)
+
+# Comprobar la normalidad de las muestras
+shapiro_p1 <- shapiro.test(array1)$p.value
+shapiro_p2 <- shapiro.test(array2)$p.value
+
+# Interpretar resultados de normalidad
+normality_message <- if (shapiro_p1 > 0.05 & shapiro_p2 > 0.05) {
+  "Ambas muestras siguen una distribución normal."
+} else {
+  "Al menos una de las muestras no sigue una distribución normal."
+}
+
+print(c(shapiro_p1, shapiro_p2, normality_message))
+```
+```{r}
+if (shapiro_p1 > 0.05 | shapiro_p2 > 0.05) {
+  
+  # Aqui comprobamos la homoscedasticidad 
+  # para saber si hay que operar con varianzas iguales o no.
+    mean1 <- mean(array1); n1 <- length(array1); sd1 <- sd(array1) 
+    mean2 <- mean(array2); n2 <- length(array2); sd2 <- sd(array2)
+      
+    fobs <- sd1^2/sd2^2
+      
+    # Valores mínimo y máximo y p-valor para la distribución t de Student
+      
+    fcritL <- qf(alpha/2, df1 = n1-1, df2 = n2-2)
+    fcritU <- qf(1-alpha/2, df1 = n1-1, df2 = n2-2)
+      
+    pvalue_sd <- min(pf(fobs, df1 = n1-1, df2 = n2-2, lower.tail = FALSE), 
+                      pf(fobs, df1 = n1-1, df2 = n2-2))*2
+      
+    
+    # Después de calcular el pvalue_sd hay 2 opciones. 
+      # 1º p < alpha: No hay varianzas iguales. 
+      # 2º p > alpha: Hay varianzas iguales.
+    # En función se hace un cálculo u otro del valor t observado
+     
+    if (pvalue_sd > alpha){
+      
+      S_value = sqrt(((n1-1)*sd1^2+(n2-1)*sd2^2)/(n1+n2-2))
+      tobs = (mean1 - mean2)/(S_value*sqrt((1/n1)+(1/n2))) 
+      
+    } else{
+      
+      tobs = (mean1 - mean2)/(sqrt((sd1^2/n1)+(sd2^2/n2))) 
+      
+    }
+    
+    # Valores mínimo y máximo y p-valor para la distribución t de Student
+    
+    tcritL <- qt(alpha/2, n1+n2-2)
+    tcritU <- qt(1-alpha/2, n1+n2-2)
+    
+    pvalue_mean <- pt(abs(tobs), df=n1+n2-2, lower.tail = FALSE)*2
+    
+    # Una vez obtenido el p-valor de la media, podemos obtener un pequeño mensaje
+    # que nos permita saber si se cumple la hipótesis nula o no.
+    
+    if (pvalue_mean > alpha){
+      
+      message = "No hay diferencias significativas"
+      
+    } else{
+      
+      message = "Hay diferencias significativas"
+      
+    }
+    
+    # Se nos devuelve el valor observado, el valor cítico, el p-valor y el mensaje
+    
+    print(c(round(c(tobs, tcritU, pvalue_mean),3), message))
+    
+} else {
+    wilcox.test(array1, array2, alternative = "two.sided")
+}
+
+```
+Los resultados de la prueba de Wilcoxon Rank Sum (prueba de Mann-Whitney-Wilcoxon) muestran que dado que el p-value es mucho menor que el nivel de significancia común *alpha = 0.05*, se **rechaza la hipótesis nula** $H_0$. Esto significa que hay diferencias estadísticamente significativas en la mediana del precio por metro cuadrado entre casas y pisos.
+
+```{r}
+
+ggplot(cleaned_properties, aes(x = Property, y = Sale_m2, fill = Property)) +
+  geom_boxplot(outlier.color = "red", outlier.shape = 16, outlier.size = 2, alpha = 0.7) +
+  labs(
+    title = "Distribución del Precio por Metro Cuadrado",
+    x = "Tipo de Propiedad",
+    y = "Precio por m²"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16),
+    axis.title.x = element_text(size = 14),
+    axis.title.y = element_text(size = 14),
+    legend.position = "none"
+  ) +
+  scale_fill_manual(values = c("Piso" = "#56B4E9", "Casa" = "#E69F00"))
+```
 
