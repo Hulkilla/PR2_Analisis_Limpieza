@@ -185,13 +185,8 @@ barplot(frecuencias,
 
 Del tipo de propiedad, esto es interesante, porque puede aportarnos información adicional, habrá que ver si realmente es. Se puede ver en el diagrama de barras que mayoritariamente las características de propiedades que hay son: media y popular, lo que indica que son pisos y casas asequibles para la mayoría de las personas. Las casas señoriales y de época suelen ser más caras puesto que precisan de un mayor mantenimiento y cuidados y suelen ser más grandes, lo que implica más dinero y menos posibilidades de venta.
 
-Sin embargo, puede ser una variable que distorsione el modelo por lo que no se va a tener en cuenta. 
 
-```{r}
-properties_spain_sell <- subset(properties_spain_sell, select = -c((Property_Type)))
-```
-
-### Ciudad
+### Provincia
 
 ```{r}
 frecuencias <- sort(table(properties_spain_sell$City), decreasing = TRUE)
@@ -212,9 +207,7 @@ barplot(frecuencias,
 ```
 En vista de los datos, no tiene mucho sentido mantener la ciudad en el análisis porque el número de inmuebles es muy reducido en cada ciudad y puede repercutir negativamente en el análisis.
 
-```{r}
-properties_spain_sell <- subset(properties_spain_sell, select = -c(City))
-```
+
 
 ### Comunidad autónoma
 
@@ -235,11 +228,7 @@ barplot(frecuencias,
         cex.axis = 0.8
         )
 ```
-Sin embargo, para evitar un dataset demasiado grande, se va a eliminar del modelo.
 
-```{r}
-properties_spain_sell <- subset(properties_spain_sell, select = -c(Autonomous_Community))
-```
 
 ### Clase Energética
 
@@ -374,7 +363,7 @@ boxplot(properties_spain_sell$Surface,
 En vista de estos datos, vamos a eliminar los registros que tienen una superficie inferior a 500 m2 y volveremos a analizar todo a ver como queda de cara que luego podamos analizar estudiar los outliers de forma multivariante.
 
 ```{r}
-#properties_spain_sell <- properties_spain_sell[properties_spain_sell$Surface <= 500,]
+properties_spain_sell <- properties_spain_sell[properties_spain_sell$Surface <= 500,]
 ```
 
 ```{r}
@@ -403,7 +392,7 @@ boxplot(properties_spain_sell$Surface,
 
 ```
 
-Sigue habiendo outliers, pero hemos eliminado gran parte de los mismos, así que por ahora, se va a dejar.
+Sigue habiendo outliers, pero hemos eliminado gran parte de los mismos, así que por ahora, se va a dejar asi de cara a hacer un análisis de outliers dentro del marco de un dataset multivariante.
 
 
 
@@ -444,7 +433,12 @@ boxplot(properties_spain_sell$Year_Construction,
         notch = TRUE)
 ```
 
-Nos encontramos con varios outliers en este dataset respecto al año de construcción, al ser pocos podemos eliminarnos del modelo en el analisis de outliers multivariente posterior y vemos que nos faltan 3 años, los cuales podremos imputarlos despues del analisis de outliers.
+Nos encontramos con varios outliers en este dataset respecto al año de construcción, al ser pocos podemos eliminarnos del modelo en el analisis de outliers multivariente posterior y vemos que nos faltan 3 años, los cuales podremos eliminarlos antes del análisis de outliers.
+
+
+```{r}
+properties_spain_sell <- properties_spain_sell[!is.na(properties_spain_sell$Year_Construction),]
+```
 
 ### Baños
 
@@ -599,7 +593,179 @@ boxplot(properties_spain_sell$Sale_Price,
 ```
 
 
+## Tendencias en función del precio de venta
+
+### Propiedad
+
+```{r}
+ggplot(properties_spain_sell, aes(x = Property, y = Sale_Price, fill = Property)) +
+  geom_boxplot(outlier.color = "red", outlier.size = 1.5) +
+  scale_y_continuous(labels = scales::comma) +
+  labs(
+    title = "Distribución de los Precios de Venta por tipo de Inmueble a la Venta",
+    x = "Inmueble",
+    y = "Precio de Venta (€)",
+    fill = "Inmueble"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(hjust = 1), 
+    plot.title = element_text(hjust = 0.5, size = 16)
+  )
+```
+
+Es curioso como las casas tienen una mayor dispersión de precios de venta que los pisos, pero luego, tienen una mediana parecida. Esto viene influido, por ejemplo, por si están en un pueblo o una ciudad y su demanda. 
+
+### Característica del inmueble
+
+```{r}
+ggplot(properties_spain_sell, aes(x = Property_Type, y = Sale_Price, fill = Property_Type)) +
+  geom_boxplot(outlier.color = "red", outlier.size = 1.5) +
+  scale_y_continuous(labels = scales::comma) +
+  labs(
+    title = "Distribución de los Precios de Venta por tipo de Inmueble a la Venta",
+    x = "Inmueble",
+    y = "Precio de Venta (€)",
+    fill = "Inmueble"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(hjust = 1),
+    plot.title = element_text(hjust = 0.5, size = 16)
+  )
+```
+El gráfico presentado muestra la distribución de los precios de venta en función del tipo de inmueble, diferenciados en cuatro categorías: "De época", "Media", "Popular" y "Señorial". Cada categoría está representada mediante un boxplot, que ilustra la mediana, los rangos intercuartílicos y los valores atípicos para los precios de venta en euros. Se observa que los inmuebles de tipo "Señorial" presentan los precios más altos, con una mayor dispersión, lo que indica una amplia variabilidad en esta categoría. Por otro lado, los inmuebles "Populares" tienen precios más bajos y una dispersión más reducida, lo que refleja mayor homogeneidad en los valores. Este gráfico sugiere que el tipo de inmueble es una variable importante que podría influir significativamente en el análisis y predicción del precio de venta, ya que existen diferencias notables entre las categorías.
+
+### Provincia
+
+```{r}
+ggplot(properties_spain_sell, aes(x = City, y = Sale_Price, fill = City)) +
+  geom_boxplot(outlier.color = "red", outlier.size = 1.5) +
+  scale_y_continuous(labels = scales::comma) +
+  labs(
+    title = "Distribución de los Precios de Venta por Ciudad",
+    x = "Ciudad",
+    y = "Precio de Venta (€)",
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.title = element_text(hjust = 0.5, size = 16),
+    legend.position = "none"
+  )
+```
+El gráfico muestra la distribución de los precios de venta de propiedades según la ciudad. Cada boxplot representa una ciudad, permitiendo observar la mediana, la dispersión (rango intercuartílico) y los valores atípicos para los precios de las propiedades en cada localidad. 
+
+Se destacan ciudades como **Madrid** y **Barcelona**, donde los precios son significativamente más altos y presentan mayor dispersión, indicando una variabilidad considerable en el mercado inmobiliario. Por el contrario, ciudades como **Toledo** o **Huelva** muestran precios más bajos y una dispersión menor, lo que indica mayor homogeneidad en los valores. 
+
+Los valores atípicos (representados como puntos rojos) se observan en ciudades como **Madrid**, **Barcelona** y **Bilbao**, reflejando la presencia de propiedades excepcionalmente caras en estas localidades. 
+
+Este gráfico permite visualizar cómo los precios de las propiedades varían ampliamente según la ciudad, lo que sugiere que la ubicación geográfica es un factor determinante en el análisis del mercado inmobiliario.
+
+### Comunidad Atónoma
+
+```{r}
+ggplot(properties_spain_sell, aes(x = Autonomous_Community, y = Sale_Price, fill = Autonomous_Community)) +
+  geom_boxplot(outlier.color = "red", outlier.size = 1.5) +
+  scale_y_continuous(labels = scales::comma) +
+  labs(
+    title = "Distribución de los Precios de Venta por Comunidad Autónoma",
+    x = "Ciudad",
+    y = "Precio de Venta (€)",
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.title = element_text(hjust = 0.5, size = 16),
+    legend.position = "none"
+  )
+```
+
+Se observa que la **Comunidad de Madrid** y el **País Vasco** presentan las distribuciones de precios más altas, con una amplia dispersión, lo que indica una alta variabilidad en los precios de las propiedades. Por el contrario, comunidades como **Extremadura**, **Andalucía**, **Castilla-La Mancha** muestran precios significativamente más bajos y menor dispersión, lo que refleja un mercado inmobiliario más accesible y homogéneo.
+
+Los puntos rojos representan valores atípicos, que corresponden a propiedades con precios excepcionalmente altos en comparación con la mayoría. Este gráfico evidencia que la ubicación geográfica, a nivel de comunidad autónoma, es un factor determinante en los precios del mercado inmobiliario, destacándose las diferencias entre regiones como Madrid y el País Vasco frente a otras comunidades con mercados menos costosos.
+
+### Superficie construida
+
+```{r}
+ggplot(properties_spain_sell, aes(x = "Surface", y = "Sale_Price")) +
+  geom_point(alpha = 0.5, color = "blue") + 
+  geom_smooth(method = "lm", formula = y ~ x, color = "red", se = FALSE) + 
+  labs(
+    title = "Precio de Venta en función de la Superficie Construida",
+    x = expression("Superficie Construida (m"^2*")"),
+    y = "Precio de Venta (€)"
+  ) +
+  theme_minimal()
+```
+El gráfico muestra una relación positiva entre el **precio de venta** y la **superficie construida**, donde a mayor superficie, el precio tiende a ser más alto, como lo indica la línea roja de tendencia. Sin embargo, existe una alta dispersión en los precios para superficies similares, lo que sugiere la influencia de otros factores, como la ubicación o las características adicionales del inmueble. También se observan valores extremos para propiedades con grandes superficies, posiblemente reflejando inmuebles de lujo o con características únicas. Este análisis confirma que la superficie es un factor importante, aunque no único, en la determinación del precio de venta.
+
+### Año de construcción
+
+```{r}
+ggplot(properties_spain_sell, aes(x = "Year_Construction", y = "Sale_Price")) +
+  geom_point(alpha = 0.5, color = "blue") + 
+  labs(
+    title = "Precio de Venta en función del Año de Construcción",
+    x = "Año de Construcción",
+    y = "Precio de Venta (€)"
+  ) +
+  theme_minimal()
+```
+
+El gráfico muestra la relación entre el **precio de venta** y el **año de construcción** de las propiedades. No se observa una tendencia clara que indique una relación directa entre ambas variables, ya que los precios presentan una alta variabilidad en propiedades de todas las épocas. Aunque las construcciones recientes (posteriores a 1960) son más frecuentes y muestran precios mayormente moderados, las propiedades antiguas tienen precios que van desde bajos hasta muy altos, posiblemente debido a su ubicación, características únicas o valor histórico. Esto sugiere que el año de construcción, por sí solo, no es un factor determinante en el precio, aunque podría ser relevante en combinación con otras variables como la ubicación o el tamaño.
+
+### Baños
+
+```{r}
+ggplot(properties_spain_sell, aes(x = Bathrooms, y = Sale_Price, fill = Bathrooms)) +
+  geom_boxplot(outlier.color = "red", outlier.size = 1.5) +
+  scale_y_continuous(labels = scales::comma) +
+  labs(
+    title = "Distribución de los Precios de Venta por cantidad de Baños en el Inmueble",
+    x = "Nº de Baños",
+    y = "Precio de Venta (€)",
+    fill = "Baños"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(hjust = 1), 
+    plot.title = element_text(hjust = 0.5, size = 16)
+  )
+```
+
+El gráfico muestra la distribución de los precios de venta en función de la cantidad de baños en los inmuebles. Se observa una tendencia creciente en los precios a medida que aumenta el número de baños. Las propiedades con un solo baño presentan precios más bajos y menor dispersión, mientras que las propiedades con dos baños tienen precios más altos y una dispersión intermedia. Las propiedades con tres baños tienen los precios más elevados y la mayor variabilidad, lo que sugiere que los inmuebles más amplios o de mayor categoría tienden a tener más baños. Este patrón indica que el número de baños es un factor relevante en la determinación del precio de venta de las propiedades.
+
+### Habitaciones
+
+
+```{r}
+ggplot(properties_spain_sell, aes(x = Bedrooms, y = Sale_Price, fill = Bedrooms)) +
+  geom_boxplot(outlier.color = "red", outlier.size = 1.5) +
+  scale_y_continuous(labels = scales::comma) +
+  labs(
+    title = "Distribución de los Precios de Venta por números de Habitaciones en el Inmueble",
+    x = "Nº de Habitaciones",
+    y = "Precio de Venta (€)",
+    fill = "Habitaciones"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(hjust = 1), 
+    plot.title = element_text(hjust = 0.5, size = 16)
+  )
+```
+
+El gráfico muestra la distribución de los precios de venta según el número de habitaciones en los inmuebles. En general, se observa que el precio tiende a aumentar con un mayor número de habitaciones, especialmente para propiedades con 7 y 9 habitaciones, que presentan precios significativamente más altos. Sin embargo, las propiedades con 6 habitaciones muestran precios notablemente más bajos, lo que podría indicar un comportamiento atípico o diferencias en otras características, como ubicación o tamaño. También se nota una gran dispersión en los precios para inmuebles con 3, 4 y 5 habitaciones, lo que sugiere que otros factores además del número de habitaciones influyen en el precio. Este patrón confirma que el número de habitaciones es un factor relevante.
+
+
 ## Analisis del dataset limpio
+
+Para simplificar el análisis se va a eliminar la variable ciudad puesto que se puede englobar dentro de la variable comunidad autónoma. 
+
+```{r}
+properties_spain_sell <- subset(properties_spain_sell, select = -c(City))
+```
 
 
 ```{r}
@@ -612,13 +778,6 @@ properties_spain_sell$Bathrooms <- droplevels(properties_spain_sell$Bathrooms)
 ```
 
 
-Los valores que nos faltan del año de construcción se podrían imputar o eliminar. En este caso, por simplifidad, se van a eliminar.
-
-```{r}
-properties_spain_sell <- properties_spain_sell[!is.na(properties_spain_sell$Year_Construction),]
-```
-
-
 ### Detección de Outliers: PCA y distancia de Mahalanobis
 
 Para analizar los outliers de este dataset de forma conjunta se va a utilizar el análisis de componentes principales (PCA, por sus siglas en inglés). Vamos a convertir cada variable factor en una columna binaria para evitar suposiciones de orden.
@@ -626,7 +785,7 @@ Para analizar los outliers de este dataset de forma conjunta se va a utilizar el
 
 ```{r}
 properties_spain_encoded <- dummy_cols(properties_spain_sell, 
-                                       select_columns = c("Bathrooms", "Bedrooms", "Property"),
+                                       select_columns = c("Bathrooms", "Bedrooms", "Property", "Property_Type", "Autonomous_Community"),
                                        remove_selected_columns = TRUE)
 
 # Seleccionar las variables numéricas
@@ -685,11 +844,11 @@ plot(prop_var_explained, type="b", pch=19, col="blue", xlab="Número de componen
 
 ```
 
-En vista de este análisis 11 PCA explicarían el 90% de la varianza de los datos y podríamos usarlo para eliminar los outliers del modelo.
+En vista de este análisis 20 PCA explicarían el 90% de la varianza de los datos y podríamos usarlo para eliminar los outliers del modelo.
 
 
 ```{r}
-pca_data <- data.frame(pca_result$x[, 1:11])
+pca_data <- data.frame(pca_result$x[, 1:20])
 ```
 
 
@@ -704,7 +863,7 @@ mean_data <- colMeans(pca_data)
 mahal_dist <- mahalanobis(pca_data, center = mean_data, cov = cov_matrix)
 
 # Definir el umbral usando la distribución chi-cuadrada
-threshold <- qchisq(0.95, df = 12) 
+threshold <- qchisq(0.95, df = 20) 
 
 # Identificar los outliers
 outliers <- mahal_dist > threshold
@@ -793,7 +952,7 @@ El objetivo de este análisis es predecir una variable numérica continua ("Sale
   4. Gradient Boosting
   5. Red Neuronal
 
-## Separación de la variable objetivo y llas varaibles predictoras
+## Separación de la variable objetivo y las variables predictoras
 
 ```{r}
 obs_X <- subset(cleaned_properties, select = c(-Sale_Price))
@@ -804,8 +963,8 @@ obj_Y <- subset(cleaned_properties, select = c(Sale_Price))
 
 ```{r}
 obs_X_encoded <- dummy_cols(obs_X, 
-                            select_columns = c("Bathrooms", "Bedrooms", "Property"),
-                            remove_first_dummy = TRUE,  # Opcional: evita colinealidad
+                            select_columns = c("Bathrooms", "Bedrooms", "Property", "Property_Type", "Autonomous_Community"),
+                            remove_first_dummy = TRUE,  
                             remove_selected_columns = TRUE)
 
 # Seleccionar las variables numéricas
@@ -816,6 +975,8 @@ numeric_vars_scaled <- scale(numeric_vars)
 
 # Reemplazar en el dataset
 obs_X_encoded[, c("Year_Construction", "Surface")] <- numeric_vars_scaled
+
+colnames(obs_X_encoded) <- make.names(colnames(obs_X_encoded))
 
 ```
 
@@ -832,10 +993,23 @@ cor(obs_X_encoded)
 ```{r}
 data_encoded <- obs_X_encoded
 data_encoded$Sale_Price <- obj_Y$Sale_Price
+colnames(data_encoded) <- make.names(colnames(data_encoded))
 vif(lm(Sale_Price ~ ., data = data_encoded))
 ```
-Si analizamos el VIF y la matriz de colinealidad, vemos que no se presenta colinealidad entre los datos elegidos, por lo que podemos seguir adelante sin eliminar varaibles del modelo.
+Si analizamos el VIF y la matriz de colinealidad, vemos que se presenta colinealidad entre los datos elegidos, sobre todo en las vairables relativas a las habitaciones y al tipo de propiedad, por lo que se van a eliminar del modelo.
 
+```{r}
+data_encoded <- data_encoded[, !colnames(data_encoded) %in% c("Bedrooms_2", "Bedrooms_3", "Bedrooms_4", "Property_Type_Media", "Property_Type_Popular")]
+
+obs_X_encoded <- obs_X_encoded[, !colnames(obs_X_encoded) %in% c("Bedrooms_2", "Bedrooms_3", "Bedrooms_4", "Property_Type_Media", "Property_Type_Popular")]
+```
+
+```{r}
+model <- lm(Sale_Price ~ ., data = data_encoded)
+vif_values <- vif(model)
+print(vif_values)
+```
+Tras realizar un análisis de multicolinealidad utilizando el Variance Inflation Factor (VIF), se han eliminado las variables que presentaban valores extremadamente altos, lo que indicaba redundancia entre ellas y posibles problemas para los modelos predictivos. Después de este ajuste, todas las variables restantes muestran valores de VIF inferiores a 5, lo que sugiere una multicolinealidad baja o aceptable. Esto garantiza que las variables seleccionadas son independientes entre sí y que no hay relaciones lineales fuertes que puedan distorsionar los resultados del modelo. Con este dataset depurado, ahora es posible proceder con los métodos supervisados y no supervisados para analizar y predecir el precio de venta. 
 
 
 ## Métodos Supervisados
@@ -849,6 +1023,7 @@ model <- lm(Sale_Price ~ ., data = data_encoded)
 summary(model)
 ```
 Aunque no tenemos mucha información de este modelo y, realmente no nos sirve, si que podemos intuir que el numero de baños, si es casa o piso y la superficie construida influyen significativamente en el precio de la vivienda.
+
 
 
 ```{r}
@@ -868,9 +1043,30 @@ ggplot(data = data_encoded, aes(x = actual_prices, y = predicted_prices)) +
   theme_minimal()
 ```
 
+### Random Forest
 
-### K-NN
+```{r}
+# Función personalizada para explorar ntree y mtry
+results <- data.frame()
 
+for (ntree in c(500, 1000, 1500, 2000, 2500)) {
+  for (mtry in c(5, 10, 15)) {
+    rf_model <- randomForest(Sale_Price ~ ., data = data_encoded, ntree = ntree, mtry = mtry)
+    rmse <- sqrt(mean((predict(rf_model, data_encoded) - data_encoded$Sale_Price)^2))
+    r_squared <- 1 - sum((predict(rf_model, data_encoded) - data_encoded$Sale_Price)^2) / 
+                       sum((mean(data_encoded$Sale_Price) - data_encoded$Sale_Price)^2)
+    results <- rbind(results, data.frame(ntree, mtry, RMSE = rmse, R2 = r_squared))
+  }
+}
+
+# Ver los resultados
+print(results)
+
+# Elegir los mejores parámetros
+best_params <- results[which.min(results$RMSE), ]
+print(best_params)
+
+```
 ```{r}
 set.seed(42)
 
@@ -883,44 +1079,42 @@ train_target <- obj_Y$Sale_Price[train_index]
 test_target <- obj_Y$Sale_Price[-train_index]
 ```
 
-
 ```{r}
-# Probar diferentes valores de k
-rmse_values <- c()
-for (k in 1:50) {
-  knn_model <- knn.reg(train = train_data, test = test_data, y = train_target, k = k)
-  predictions <- knn_model$pred
-  rmse <- sqrt(mean((test_target - predictions)^2))
-  rmse_values <- c(rmse_values, rmse)
-}
+# Entrenar el modelo
+rf_model <- randomForest(Sale_Price ~ ., data = data_encoded, ntree = 2000, mtry = 15, importance = TRUE)
 
-# Graficar RMSE vs k
-plot(1:50, rmse_values, type = "b", xlab = "Número de vecinos (k)", ylab = "RMSE")
+# Predecir en los datos de prueba
+predictions <- predict(rf_model, newdata = test_data)
+
+# Calcular métricas de rendimiento
+rmse <- sqrt(mean((predictions - test_target)^2))
+r_squared <- 1 - sum((predictions - test_target)^2) / sum((mean(test_target) - test_target)^2)
+
+cat("RMSE:", rmse, "\n")
+cat("R²:", r_squared, "\n")
+
+# Evaluar importancia de variables
+importance(rf_model)
 
 
 ```
-```{r}
-k <- 30
-
-knn_model <- knn.reg(train = train_data, test = test_data, y = train_target, k = k)
-
-# Predicciones
-predictions <- knn_model$pred
-
-rmse <- sqrt(mean((test_target - predictions)^2))
-print(paste("RMSE:", rmse))
-
-# Calcular R²
-sst <- sum((test_target - mean(test_target))^2)
-sse <- sum((test_target - predictions)^2)
-r_squared <- 1 - (sse / sst)
-print(paste("R²:", round(r_squared,4)))
-```
+El análisis de importancia de las variables en el modelo Random Forest optimizado revela que la **superficie** de la propiedad es, con un 85.90% de incremento en el error (IncMSE) al eliminarla, la variable más influyente en la predicción del precio de venta. Le sigue la pertenencia a la comunidad autónoma de **Madrid** (55.38%), destacando nuevamente el impacto significativo del mercado inmobiliario en esta región. El número de baños también tiene un papel relevante, especialmente para propiedades con tres baños (40.65%) y dos baños (35.20%), lo que confirma que esta característica es clave en la determinación del precio. Además, las propiedades clasificadas como **Piso** (33.19%) y las situadas en **Extremadura** (34.40%) también presentan una influencia considerable, reflejando diferencias regionales y estructurales del mercado. Por otro lado, variables como **Bedrooms_5** (3.37%) y **Property_Type_Señorial** (-0.68%) tienen una influencia baja o nula, lo que sugiere que su relevancia en el modelo es mínima. Este análisis subraya la importancia de variables estructurales y regionales en la predicción del precio de las propiedades.
 
 
 ## Métodos no supervisados
 
-Para los métodos no supervisados 
+Para los métodos no supervisados: 
+
+Razón para excluir Sale_Price
+
+K-Means crea clústeres basados en la distancia:
+
+Si incluyes Sale_Price, el algoritmo tenderá a agrupar propiedades según esta variable en lugar de considerar un balance de todas las características. Esto podría resultar en clústeres sesgados o poco interpretables.
+
+La variable Sale_Price ya es una función de otras variables:
+
+En tu análisis supervisado, Sale_Price es el resultado de una combinación de las otras variables. Al incluirla en K-Means, estás introduciendo redundancia y potencialmente distorsionando los clústeres.
+
 
 ### K-Means
 
@@ -947,8 +1141,10 @@ sil_width <- sapply(2:10, function(k) {
 plot(2:10, sil_width, type = "b", pch = 19, frame = FALSE,
      xlab = "Número de Clústeres (k)", ylab = "Coeficiente de Silueta")
 ```
+Teniendo en cuenta ambas imágenes, parece que el número de clusteres más adecuado está entre 4 y 6. Estos valores deberían proporcionar un buen balance entre minimizar el WSS y mantener la simplicidad en el modelo.
+
 ```{r}
-k = 8
+k = 4
 
 kmeans_model <- kmeans(predictors, centers = k, nstart = 25)
 
@@ -970,20 +1166,12 @@ ggplot(predictors, aes(x = Surface, y = Year_Construction, color = factor(Cluste
   labs(color = "Cluster") +
   theme_minimal()
 ```
+
 ```{r}
 aggregate(obj_Y$Sale_Price, by = list(Cluster = predictors$Cluster), FUN = mean)
 ```
 
-
-Razón para excluir Sale_Price
-
-K-Means crea clústeres basados en la distancia:
-
-Si incluyes Sale_Price, el algoritmo tenderá a agrupar propiedades según esta variable en lugar de considerar un balance de todas las características. Esto podría resultar en clústeres sesgados o poco interpretables.
-
-La variable Sale_Price ya es una función de otras variables:
-
-En tu análisis supervisado, Sale_Price es el resultado de una combinación de las otras variables. Al incluirla en K-Means, estás introduciendo redundancia y potencialmente distorsionando los clústeres.
+El análisis de clustering k-means resultó en una segmentación efectiva de los datos en 4 clústeres, con diferencias claras en el precio promedio de venta de las propiedades. El Clúster 1 muestra un precio promedio de 260,350.00, indicando que agrupa propiedades de mayor valor, probablemente asociadas con características como mayor superficie o mejor ubicación. Por otro lado, el Clúster 3 tiene el precio promedio más bajo, 147,703.40, lo que podría estar relacionado con propiedades más pequeñas o ubicadas en zonas menos costosas. Los Clústeres 2 y 4 presentan precios promedio de 154,551.80 y 183,557.30, respectivamente, reflejando segmentos intermedios en términos de precio. Esta segmentación permite identificar patrones en el mercado inmobiliario y comprender cómo variables como superficie y año de construcción influyen en el valor de las propiedades.
 
 ### DBSCAN
 
@@ -995,10 +1183,8 @@ predictors <- obs_X_encoded
 ```{r}
 dbscan_model <- dbscan(predictors, eps = 1, minPts = 5)
 
-# Ver los resultados
 print(dbscan_model)
 
-# Asignar los clústeres al dataset original
 predictors$Cluster <- dbscan_model$cluster
 
 ```
@@ -1086,11 +1272,11 @@ optimal_eps <- optimal_config$eps[1]
 optimal_minPts <- optimal_config$minPts[1]
 
 dbscan_model <- dbscan(predictors, eps = optimal_eps, minPts = optimal_minPts)
-
+print(dbscan_model)
 ```
 
 ```{r}
-predictors$Cluster <- kmeans_model$cluster
+predictors$Cluster <- dbscan_model$cluster
 
 ggplot(predictors, aes(x = Surface, y = Year_Construction, color = factor(Cluster))) +
   geom_point() +
@@ -1101,7 +1287,7 @@ ggplot(predictors, aes(x = Surface, y = Year_Construction, color = factor(Cluste
 ```{r}
 aggregate(obj_Y$Sale_Price, by = list(Cluster = predictors$Cluster), FUN = mean)
 ```
-
+El modelo DBSCAN aplicado a los datos ha identificado **8 clústeres** distintos y **106 puntos de ruido**. Los clústeres se diferencian en función de las características estructurales y regionales de las propiedades, con precios de venta medios que varían considerablemente. Por ejemplo, el clúster 1 contiene la mayor parte de los datos (168 observaciones) con un precio promedio de **146,404.74**, mientras que otros clústeres más pequeños, como el 8 (6 observaciones), presentan un precio promedio significativamente menor (**53,216.67**). Por otro lado, los puntos considerados como ruido tienen un precio promedio de **215,598.58**, lo que indica que podrían corresponder a casos atípicos o propiedades que no encajan en ninguna agrupación. Aunque el modelo ha capturado patrones claros en los datos, el ruido identificado puede ser reducido ajustando los parámetros o preprocesando los datos, si se considera necesario. En general, DBSCAN ha demostrado ser útil para identificar agrupaciones densas y diferenciar propiedades según sus características clave.
 
 
 ## Prueba por contraste de hipótesis
