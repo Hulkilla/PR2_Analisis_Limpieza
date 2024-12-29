@@ -1,4 +1,4 @@
-# Grupal Practise 1 - Data Typology and Life Cycle
+# Grupal Practise 2 - Data Cleaning and Exploratory Analysis
 Subject: M2.851 / Semester: 2024-1 / Date: 11-02-2024
 
 ## Authors
