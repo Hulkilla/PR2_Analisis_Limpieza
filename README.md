@@ -19,7 +19,7 @@ This project involves a comprehensive analysis of the real estate market using s
 3. [Supervised Models](#supervised-models)
 4. [Unsupervised Models](#unsupervised-models)
 5. [Hypothesis Testing](#hypothesis-testing)
-
+6. [Results and Conclusions](#results-and-conclusions)
 ---
 
 ## Data Loading and Cleaning
