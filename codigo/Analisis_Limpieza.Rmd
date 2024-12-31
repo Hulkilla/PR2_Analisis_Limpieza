@@ -122,7 +122,7 @@ barplot(frecuencias,
         main = "Distribución de Propiedades", 
         ylab = "Frecuencia", 
         col = colores,
-        las = 2,       
+        las = 1,       
         cex.names = 0.8)
 
 ```
@@ -175,8 +175,7 @@ frecuencias
 colores <- rainbow(length(frecuencias))
 
 barplot(frecuencias, 
-        main = "Distribución de Caracteristicas de Propiedades", 
-        xlab = "Caracteristicas de Propiedades", 
+        main = "Distribución de Caracteristicas de Propiedades",
         ylab = "Frecuencia", 
         col = colores
         )
@@ -580,7 +579,23 @@ upper_limit <- Q3 + 1.5 * IQR_value
 properties_spain_sell <- properties_spain_sell[properties_spain_sell$Sale_Price >= lower_limit & properties_spain_sell$Sale_Price <= upper_limit,]
 ```
 
+```{r}
+variable <- properties_spain_sell$Sale_Price
 
+hist(variable, 
+     breaks = 100,
+     probability = TRUE,
+     col = "lightblue",
+     main = "Distribución del Precio de Venta", 
+     xlab = "Precio de venta", 
+     ylab = "Densidad")
+
+# Añadir la curva suavizada (density)
+lines(density(variable, na.rm = TRUE), 
+      col = "red",          # Color de la curva
+      lwd = 2)              # Ancho de la línea
+
+```
 
 ```{r}
 
@@ -688,7 +703,7 @@ Los puntos rojos representan valores atípicos, que corresponden a propiedades c
 ### Superficie construida
 
 ```{r}
-ggplot(properties_spain_sell, aes(x = "Surface", y = "Sale_Price")) +
+ggplot(properties_spain_sell, aes(x = Surface, y = Sale_Price)) +
   geom_point(alpha = 0.5, color = "blue") + 
   geom_smooth(method = "lm", formula = y ~ x, color = "red", se = FALSE) + 
   labs(
@@ -703,7 +718,7 @@ El gráfico muestra una relación positiva entre el **precio de venta** y la **s
 ### Año de construcción
 
 ```{r}
-ggplot(properties_spain_sell, aes(x = "Year_Construction", y = "Sale_Price")) +
+ggplot(properties_spain_sell, aes(x = Year_Construction, y = Sale_Price)) +
   geom_point(alpha = 0.5, color = "blue") + 
   labs(
     title = "Precio de Venta en función del Año de Construcción",
@@ -1098,6 +1113,19 @@ importance(rf_model)
 
 
 ```
+```{r}
+predicted_prices <- predict(rf_model, newdata = test_data)
+
+ggplot(data = data.frame(Actual = test_target, Predicted = predicted_prices), aes(x = Actual, y = Predicted)) +
+  geom_point(alpha = 0.6, color = "blue") +
+  geom_abline(slope = 1, intercept = 0, color = "red", linetype = "dashed") +
+  labs(title = "Valores Reales vs Predichos",
+       x = "Valor Real",
+       y = "Valor Predicho") +
+  theme_minimal()
+```
+
+
 El análisis de importancia de las variables en el modelo Random Forest optimizado revela que la **superficie** de la propiedad es, con un 85.90% de incremento en el error (IncMSE) al eliminarla, la variable más influyente en la predicción del precio de venta. Le sigue la pertenencia a la comunidad autónoma de **Madrid** (55.38%), destacando nuevamente el impacto significativo del mercado inmobiliario en esta región. El número de baños también tiene un papel relevante, especialmente para propiedades con tres baños (40.65%) y dos baños (35.20%), lo que confirma que esta característica es clave en la determinación del precio. Además, las propiedades clasificadas como **Piso** (33.19%) y las situadas en **Extremadura** (34.40%) también presentan una influencia considerable, reflejando diferencias regionales y estructurales del mercado. Por otro lado, variables como **Bedrooms_5** (3.37%) y **Property_Type_Señorial** (-0.68%) tienen una influencia baja o nula, lo que sugiere que su relevancia en el modelo es mínima. Este análisis subraya la importancia de variables estructurales y regionales en la predicción del precio de las propiedades.
 
 
