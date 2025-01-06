@@ -1,5 +1,5 @@
 # Grupal Practise 2 - Data Cleaning and Exploratory Analysis
-Subject: M2.851 / Semester: 2024-1 / Date: 11-02-2024
+Subject: M2.851 / Semester: 2024-1 / Date: 06-01-2025
 
 ## Authors
 1) Marina Fernández Delgado - mfernandezdelg@uoc.edu
